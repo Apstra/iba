@@ -6,7 +6,7 @@
 def mlag_imbalance_probe(label, duration, std_max):
 
     """
-
+    Generates Probe to Calculate MLAG Imbalance
     Parameters
     ----------
     label - str
