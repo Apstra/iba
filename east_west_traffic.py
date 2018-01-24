@@ -6,7 +6,7 @@
 
 def eastwest_traffic_probe(label, average_period, history_sample_count):
     """
-
+    Generates probe to calculate total East/West Traffic
     Parameters
     ----------
     label - str
