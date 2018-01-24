@@ -8,7 +8,7 @@ def ecmp_imbalance_probe(label, average_period, duration, threshold_duration,
                          std_max, anomaly_history_count, max_systems_imbalanced,
                          system_imbalance_history_count):
     """
-
+    Generates Probe to Calculate ECMP Imbalance on external facing fabric ports
     Parameters
     ----------
     label - str
