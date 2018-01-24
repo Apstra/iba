@@ -8,7 +8,7 @@ def external_ecmp_imbalance_probe(label, average_period, duration, threshold_dur
                                 system_imbalance_history_count):
 
     """
-
+    Generates Probe to Calculate ECMP Imbalance on external ports
     Parameters
     ----------
     label - str
