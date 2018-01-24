@@ -8,7 +8,7 @@ def interface_flapping_probe(label, threshold, duration,
                                     max_flapping_interfaces_percentage):
 
     """
-
+    Generates Probe to Determine if Interfaces are Flapping
     Parameters
     ----------
     label - str
