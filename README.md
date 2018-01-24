@@ -1,7 +1,5 @@
 # IBA Probes
 
-Collection of probes used for IBA. 
-
 East West Traffic  
 ECMP Imbalance  
 External ECMP Imbalance  
