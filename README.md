@@ -17,21 +17,21 @@ Below is a collection of commonly used probes that can be used
 out of the box with AOS. They also serve as examples to help build custom probes 
 yourself.
 
-#### [East West Traffic](docs/east_west_traffic.jpynb)
+#### [East West Traffic](docs/east_west_traffic.ipynb)
     Generates Probe to Calculate Total East/West Traffic     
-#### [ECMP Imbalance](docs/ecmp_imbalance.jpynb)
+#### [ECMP Imbalance](docs/ecmp_imbalance.ipynb)
     Generates Probe to Calculate ECMP Imbalance on fabric ports   
-#### [External ECMP Imbalance](docs/external_ecmp_imbalance.jpynb) 
+#### [External ECMP Imbalance](docs/external_ecmp_imbalance.ipynb) 
     Generates Probe to Calculate ECMP Imbalance on external facing fabric ports 
-#### [Headroom](/docs/headroom.jpynb)  
+#### [Headroom](idocs/headroom.ipynb)  
     Generates Probe to Calculate Headroom
-#### [Hot Cold Interface](/docs/hot_cold_interface.jpynb)  
+#### [Hot Cold Interface](idocs/hot_cold_interface.ipynb)  
     Generates Probe to Determine Hot/Cold Fabric Interface Counters
-#### [Interface Flapping](/docs/interface_flapping.jpynb)  
+#### [Interface Flapping](idocs/interface_flapping.ipynb)  
     Generates Probe to Determine if Interfaces are Flapping
-#### [MLAG Imbalance](/docs/mlag_imbalance.jpynb)   
+#### [MLAG Imbalance](idocs/mlag_imbalance.ipynb)   
     Generates Probe to Calculate MLAG Imbalance
-#### [Specific Hot Cold Interface](/docs/specific_hot_cold_interface.jpynb) 
+#### [Specific Hot Cold Interface](idocs/specific_hot_cold_interface.ipynb) 
     Generates Probe to Determine Hot/Cold for Specific Interface Counters
-#### [Specific Interface Flapping](/docs/specific_interface_flapping.jpynb)  
+#### [Specific Interface Flapping](idocs/specific_interface_flapping.ipynb)  
     Generates Probe to Determine if Interfaces are Flapping
