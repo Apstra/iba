@@ -11,17 +11,17 @@ network, does various successive aggregations and calculations on it, and
 optionally specifies some conditions of said aggregations and calculations on 
 which anomalies are raised.
 
-![IBA workflow](/media/iba1.png?raw=true "IBA Workflow")
+![IBA workflow](docs/media/iba1.png?raw=true "IBA Workflow")
 
 Below is a collection of commonly used probes that can be used 
 out of the box with AOS. They also serve as examples to help build custom probes 
 yourself.
 
-#### [East West Traffic](/docs/east_west_traffic.jpynb)
+#### [East West Traffic](docs/east_west_traffic.jpynb)
     Generates Probe to Calculate Total East/West Traffic     
-#### [ECMP Imbalance](/docs/ecmp_imbalance.jpynb)
+#### [ECMP Imbalance](docs/ecmp_imbalance.jpynb)
     Generates Probe to Calculate ECMP Imbalance on fabric ports   
-#### [External ECMP Imbalance](/docs/external_ecmp_imbalance.jpynb) 
+#### [External ECMP Imbalance](docs/external_ecmp_imbalance.jpynb) 
     Generates Probe to Calculate ECMP Imbalance on external facing fabric ports 
 #### [Headroom](/docs/headroom.jpynb)  
     Generates Probe to Calculate Headroom
