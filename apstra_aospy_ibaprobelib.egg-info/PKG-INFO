@@ -1,0 +1,15 @@
+Metadata-Version: 1.1
+Name: apstra-aospy-ibaprobelib
+Version: 2.1.0
+Summary: AOS IBA probe library
+Home-page: UNKNOWN
+Author: support@apstra.com
+Author-email: UNKNOWN
+License: Apstra Community
+Description-Content-Type: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
