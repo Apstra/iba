@@ -23,15 +23,15 @@ yourself.
     Generates Probe to Calculate ECMP Imbalance on fabric ports   
 #### [External ECMP Imbalance](docs/external_ecmp_imbalance.ipynb) 
     Generates Probe to Calculate ECMP Imbalance on external facing fabric ports 
-#### [Headroom](idocs/headroom.ipynb)  
+#### [Headroom](docs/headroom.ipynb)  
     Generates Probe to Calculate Headroom
-#### [Hot Cold Interface](idocs/hot_cold_interface.ipynb)  
+#### [Hot Cold Interface](docs/hot_cold_interface.ipynb)  
     Generates Probe to Determine Hot/Cold Fabric Interface Counters
-#### [Interface Flapping](idocs/interface_flapping.ipynb)  
+#### [Interface Flapping](docs/interface_flapping.ipynb)  
     Generates Probe to Determine if Interfaces are Flapping
-#### [MLAG Imbalance](idocs/mlag_imbalance.ipynb)   
+#### [MLAG Imbalance](docs/mlag_imbalance.ipynb)   
     Generates Probe to Calculate MLAG Imbalance
-#### [Specific Hot Cold Interface](idocs/specific_hot_cold_interface.ipynb) 
+#### [Specific Hot Cold Interface](docs/specific_hot_cold_interface.ipynb) 
     Generates Probe to Determine Hot/Cold for Specific Interface Counters
-#### [Specific Interface Flapping](idocs/specific_interface_flapping.ipynb)  
+#### [Specific Interface Flapping](docs/specific_interface_flapping.ipynb)  
     Generates Probe to Determine if Interfaces are Flapping
