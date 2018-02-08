@@ -8,6 +8,7 @@ aospy/ibaprobelib/external_ecmp_imbalance.py
 aospy/ibaprobelib/headroom.py
 aospy/ibaprobelib/hot_cold_interface.py
 aospy/ibaprobelib/interface_flapping.py
+aospy/ibaprobelib/interface_status.py
 aospy/ibaprobelib/mlag_imbalance.py
 aospy/ibaprobelib/specific_hot_cold_interface.py
 aospy/ibaprobelib/specific_interface_flapping.py
