@@ -5,6 +5,8 @@ this data is voluminous and unhelpful. Through Intent-Based Analytics (IBA), AOS
 allows the operator to combine intent from the AOS graph database with current 
 and historic data from devices to reason about the network at-large.
 
+For a detailed explaination of AOS IBA, please watch out recent webinar ["Intent-Based Analytics: Prevent Network Outages and Gray Failures"](http://www.apstra.com/resources/webinars/)! 
+
 Probes are the basic unit of abstraction in IBA. Operators can configure, create, 
 and delete probes. Generally, a given probe consumes some set of data from the 
 network, does various successive aggregations and calculations on it, and 
