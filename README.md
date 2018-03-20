@@ -19,6 +19,12 @@ Below is a collection of commonly used probes that can be used
 out of the box with AOS. They also serve as examples to help build custom probes 
 yourself.
 
+# Getting Started
+
+You can find the setup instructions and try these out in your environment [here](docs/README.md).
+
+To access each tutorial directly, click on the links below:
+
 #### [East West Traffic](docs/east_west_traffic.ipynb)
     Generates Probe to Calculate Total East/West Traffic     
 #### [ECMP Imbalance](docs/ecmp_imbalance.ipynb)
