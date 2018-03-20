@@ -52,5 +52,9 @@ and run the following command:
 This command will launch a web-browers with a directory tree showing all of the files.
 Click on one of the tutorials you want to try out.
 
+To "reset" the notebook, from the top-menu select "Kerne > Restart & Clear Output".  You
+can then execute each Python cell one at a time to step through the code and observe
+each output.
+
 For more information on using Jupyter notebooks, please refer to the online documentation. 
 The beginners guide is located [here](https://jupyter-notebook-beginner-guide.readthedocs.io/en/latest/).
