@@ -1,0 +1,77 @@
+{# Raise anomaly if node has BUM traffic on unlearnt VTEPs #}
+
+
+{# We want to monitor only leafs with any vxlan endpoints and checking for presence
+   of logical_vtep is a simple way of doing this as AOS creates logical vteps only
+   on required leafs #}
+
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set graph_query = ([
+  "node('system', name='leaf', role='leaf', deploy_mode='deploy')",
+  ".out('hosted_interfaces')",
+  ".node('interface', if_type='logical_vtep', ipv4_addr=not_none())",
+] | join ) %}
+
+
+{
+  "label": "Decapsulated BUM traffic on unlearnt vteps",
+  "processors": [
+    {
+      "name": "Collect decapsulated BUM traffic on unlearnt vteps",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "vtep_counters",
+        "system_id": "leaf.system_id",
+        "key": "'unlearnt_vteps_decap_bum_pkts'"
+      },
+      "outputs": {
+        "out": "bum_traffic_on_unlearnt_vteps"
+      }
+    },
+    {
+      "name": "Is decapsulated BUM traffic greater than zero?",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "bum_traffic_on_unlearnt_vteps"
+      },
+      "properties": {
+        "range": {
+          "max": 0
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "has_bum_traffic_on_unlearnt_vteps"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "type": "anomaly",
+      "name": "Raise anomaly if decapsulated BUM traffic is greater than zero",
+      "inputs": {
+        "in": "has_bum_traffic_on_unlearnt_vteps"
+      },
+      "outputs": {
+        "out": "bum_traffic_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "BUM traffic on unlearnt VTEPs anomaly history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"has_bum_traffic_on_unlearnt_vteps" if supports_raise_anomaly else "bum_traffic_anomaly"}}"
+      },
+      "outputs": {
+        "out": "bum_traffic_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+  ]
+}

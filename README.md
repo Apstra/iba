@@ -43,3 +43,8 @@ To access each tutorial directly, click on the links below:
     Generates Probe to Determine Hot/Cold for Specific Interface Counters
 #### [Specific Interface Flapping](docs/specific_interface_flapping.ipynb)  
     Generates Probe to Determine if Interfaces are Flapping
+
+# More probes
+
+You can find many more probes in the `templates` subfolder. Refer to its
+[readme](templates/README.md) for more info on how to use these

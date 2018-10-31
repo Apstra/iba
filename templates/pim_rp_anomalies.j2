@@ -1,0 +1,73 @@
+{#
+  Ensure that every device has the correct rp configuration per vrf.
+#}
+
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set graph_query = "match(node('system', name='system', role=is_in(['leaf', 'spine']), deploy_mode='deploy').out('hosted_sz_instances').node('sz_instance').in_('instantiated_by'). node('security_zone', name='sz').in_('sz').node('multicast_policy').out('rp').node('rendezvous_point', name='rp').out('anycast_interface').node('interface', name='anycast_ip'))" %}
+
+{% set group_ranges = "'|'.join(sorted(rp.group_addr_ranges))" %}
+
+{
+  "label": "Missing Multicast RPs",
+  "processors": [
+    {
+      "name": "Collect PIM RP per VRF and groups",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "dss",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "pim_rp",
+        "system_id": "system.system_id",
+        "key": "'%s|%s|%s' % (sz.vrf_name, anycast_ip.ipv4_addr.split('/')[0], {{ group_ranges }})",
+        "value_map": {
+          "0": "absent",
+          "1": "present"
+        }
+      },
+      "outputs": {
+        "out": "pim_rp_config"
+      }
+    },
+    {
+      "name": "Check presence of expected RP",
+      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "inputs": {
+        "in": "pim_rp_config"
+      },
+      "properties": {
+        "state": "present"
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "missing_rp"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "name": "Missing RP anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "missing_rp"
+      },
+      "outputs": {
+        "out": "missing_rp_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Missing RP anomaly History",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"missing_rp" if supports_raise_anomaly else "missing_rp_anomaly"}}"
+      },
+      "outputs": {
+        "out": "missing_rp_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+  ]
+}

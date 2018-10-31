@@ -1,0 +1,65 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{
+  "processors": [
+    {
+      "name": "Collect physical interface state",
+      "type": "service_data_collector",
+      "properties": {
+        "graph_query": "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy').out('hosted_interfaces').node('interface', name='intf', if_type=is_in(['ip', 'ethernet'])).out('link').node('link').in_('link').node('interface', name='peer_intf').in_('hosted_interfaces').node('system', name='peer', deploy_mode='deploy')).ensure_different('system', 'peer')",
+        "service_name": "interface",
+        "system_id": "system.system_id",
+        "key": "intf.if_name",
+        "description": "intf.description or 'facing %s' % (peer.hostname or peer.label or peer.role)",
+        "peer_hostname": "peer.hostname"
+      },
+      "outputs": {
+        "out": "physical_interface_state"
+      }
+    },
+    {
+      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "name": "Inactive interfaces",
+      "inputs": {
+        "in": "physical_interface_state"
+      },
+      "properties": {
+        "state": "up"
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "physical_interface_down"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "type": "anomaly",
+      "name": "physical interface down anomaly",
+      "inputs": {
+        "in": "physical_interface_down"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "physical_interface_down_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "physical interface state history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"physical_interface_down" if supports_raise_anomaly else "physical_interface_down_anomaly"}}"
+      },
+      "outputs": {
+        "out": "physical_interface_down_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+  ],
+  "label": "Physical interface status"
+}

@@ -1,0 +1,72 @@
+{#
+   Ensure any device acting as RP on any VRF is an RP for all other multicast enabled VRFs on that device
+#}
+
+{% set graph_query = "match(node('system', name='rp_system').out('hosted_interfaces').node('interface').in_('anycast_interface'), node(name='rp_system').out('hosted_sz_instances').node('sz_instance').in_('instantiated_by').node('security_zone', name='sz').in_('sz').node('multicast_policy')).distinct()" %}
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+
+{
+  "label": "VRFs missing RPs",
+  "processors": [
+    {
+      "name": "Per VRF RP presence",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "dss",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "anycast_rp",
+        "system_id": "rp_system.system_id",
+        "key": "'%s|rp_role' % sz.vrf_name",
+        "value_map": {
+          "0": "missing",
+          "1": "is_rp",
+          "2": "is_not_rp"
+        }
+      },
+      "outputs": {
+        "out": "vrf_rp_presence"
+      }
+    },
+    {
+      "name": "Check RP presence",
+      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "inputs": {
+        "in": "vrf_rp_presence"
+      },
+      "properties": {
+        "state": "is_rp"
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+          "out": "vrf_rp_absent"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "name": "RP absent anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "vrf_rp_absent"
+      },
+      "outputs": {
+        "out": "vrf_rp_absent_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "RP absent Anomaly History",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"vrf_rp_absent" if supports_raise_anomaly else "vrf_rp_absent_anomaly"}}"
+      },
+      "outputs": {
+        "out": "vrf_rp_absent_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+    ]
+}

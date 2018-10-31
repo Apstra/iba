@@ -1,0 +1,115 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set hcl_pattern_2_1_1 = '\'\\"os\\": \\"%s\\",\'' % os_family %}
+{% set query_2_1_1 = "node('system', name='system', system_id=not_none(), deploy_mode='deploy').out('port_map').node('port_map').out('hcl_entry').node('hcl_entry', name='device_type_node').where(lambda device_type_node: %s in device_type_node.json.lower())" % hcl_pattern_2_1_1 %}
+{% set query_2_2 = "node('system', name='system', system_id=not_none(), deploy_mode='deploy').out('interface_map').node('interface_map').out('device_profile').node('device_profile', name='device_type_node').where(lambda device_type_node: device_type_node.selector['os'].lower() == '%s')" % os_family %}
+
+{
+  "processors": [
+    {
+      "name": "Collect resident memory rates",
+      "type": "generic_data_collector",
+      "outputs": {
+        "out": "Memory_rate"
+      },
+      "properties": {
+        "service_name": "resource_usage",
+        "system_id": "system.system_id",
+        "data_type": "ns",
+        "device_type": "device_type_node.label",
+        "key": "'{{process}}|memory_rate|VmRSS'",
+        "process": "'{{process}}'",
+        "graph_query": "{{ query_2_1_1 if function.version_compare(aos_version, '<', '2.2') else query_2_2 }}"
+      }
+    },
+    {
+      "name": "Memory rate history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "Memory_rate"
+      },
+      "outputs": {
+        "out": "Memory_rate_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    },
+    {
+      "name": "Periodic average of memory rate",
+      "type": "periodic_average",
+      "inputs": {
+        "in": "Memory_rate"
+      },
+      "outputs": {
+        "out": "Average_memory_rate"
+      },
+      "properties": {
+        "period": 1800
+      }
+    },
+    {
+      "name": "Memory rate of exceeding threshold",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "Average_memory_rate"
+      },
+      "outputs": {
+        "out": "Memory_rate_out_of_range"
+      },
+      "properties": {
+        "range": {
+          "max": 0
+        }
+      }
+    },
+    {
+      "name": "Sustained memory leak",
+      "type": "{{ function.get_proc_name('time_in_state', aos_version) }}",
+      "inputs": {
+        "in": "Memory_rate_out_of_range"
+      },
+      "outputs": {
+        "out": "Memory_leak"
+      },
+      "properties": {
+        "time_window": 36000,
+        "state_range": {
+          "true": [
+            {
+              "max": 35000
+            }
+          ]
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "name": "Raise anomaly when memory rate is sustained for a period",
+      "type": "anomaly",
+      "inputs": {
+        "in": "Memory_leak"
+      },
+      "outputs": {
+        "out": "Memory_leak_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anomaly history of memory usage",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"Memory_leak" if supports_raise_anomaly else "Memory_leak_anomaly"}}"
+      },
+      "outputs": {
+        "out": "Memory_leak_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+  ],
+  "label": "Memory intensive usage anomalies"
+}

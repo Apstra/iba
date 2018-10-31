@@ -1,0 +1,71 @@
+{# 
+   Ensure all systems designated as RPs have the expected peers present.
+#}
+
+{% set graph_query_peer = "match(node('security_zone', name='sz').in_('sz').node('multicast_policy').out('rp').node('rendezvous_point', name='rp').out('anycast_interface').node('interface', name='anycast_ip').in_('hosted_interfaces').node('system', name='system'), node(name='rp').out('member_interfaces').node('interface', name='peer'))"%}
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+
+{
+  "processors": [
+    {
+      "name": "Anycast Peers",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "dss",
+        "graph_query": "{{ graph_query_peer }}",
+        "service_name": "anycast_rp",
+        "system_id": "system.system_id",
+        "key": "'%s|%s|peer|%s' % (sz.vrf_name, anycast_ip.ipv4_addr.split('/')[0], peer.ipv4_addr.split('/')[0])",
+        "value_map": {
+          "0": "absent",
+          "1": "present"
+        }
+      },
+      "outputs": {
+        "out": "anycast_peers"
+      }
+    },
+    {
+      "name": "Check anycast peers",
+      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "inputs": {
+        "in": "anycast_peers"
+      },
+      "properties": {
+        "state": "present"
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+          "out": "anycast_peers_absent"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "name": "anycast_rp_peer_anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "anycast_peers_absent"
+      },
+      "outputs": {
+        "out": "anycast_rp_peer_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anycast RP Peer Anomaly History",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"anycast_peers_absent" if supports_raise_anomaly else "anycast_rp_peer_anomaly"}}"
+      },
+      "outputs": {
+        "out": "anycast_rp_peer_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+    ],
+  "label": "Anycast RP Anomalies"
+}

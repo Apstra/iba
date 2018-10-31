@@ -1,0 +1,129 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set prefix = (target_ip | default('')) or '8.8.8.8' %}
+{
+  "processors": [{
+    "name": "Packet loss percent from servers",
+    "type": "generic_data_collector",
+    "properties": {
+      "data_type": "ns",
+      "service_name": "ping",
+      "graph_query": "match(node('system', name='system', role=is_in(['l2_server', 'l3_server']), system_id=not_none()))",
+      "key": "'{{prefix}}_packet_loss_percent'",
+      "system_id": "system.system_id"
+    },
+    "outputs": {
+      "out": "packet_loss_percent"
+    }
+  },
+  {
+    "name": "History of packet loss percent",
+    "type": "accumulate",
+    "inputs": {
+      "in": "packet_loss_percent"
+    },
+    "outputs": {
+      "out": "packet_loss_percent_history"
+    },
+    "properties": {
+      "max_samples": 50
+    }
+  },
+  {
+    "name": "Check non-zero packet loss percent",
+    "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+    "inputs": {
+      "in": "packet_loss_percent"
+    },
+    "properties": {
+      "range": {
+        "max": 0
+      }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+    },
+    "outputs": {
+      "out": "has_packet_loss"
+    }
+  },
+{% if not supports_raise_anomaly %}
+  {
+    "type": "anomaly",
+    "name": "Raise anomaly if packet loss seen",
+    "inputs": {
+      "in": "has_packet_loss"
+    },
+    "properties": {
+      "enable_streaming": true
+    },
+    "outputs": {
+      "out": "packet_loss_anomaly"
+    }
+  },
+{% endif %}
+  {
+    "name": "Anomaly history of packet loss",
+    "type": "accumulate",
+    "inputs": {
+      "in": "{{"has_packet_loss" if supports_raise_anomaly else "packet_loss_anomaly"}}"
+    },
+    "outputs": {
+      "out": "packet_loss_anomaly_history"
+    },
+    "properties": {
+      "max_samples": 50
+    }
+  },
+  {
+    "name": "Detect sustained packet loss",
+    "type": "{{ function.get_proc_name('time_in_state', aos_version) }}",
+    "inputs": {
+      "in": "has_packet_loss"
+    },
+    "properties": {
+      "time_window": 120,
+      "state_range": {
+        "true": [
+          {
+            "max": 20
+          }
+        ]
+      }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+    },
+    "outputs": {
+      "out": "has_sustained_packet_loss"
+    }
+  },
+{% if not supports_raise_anomaly %}
+  {
+    "type": "anomaly",
+    "name": "Raise anomaly when server has sustained packet loss",
+    "inputs": {
+      "in": "has_sustained_packet_loss"
+    },
+    "properties": {
+      "enable_streaming": true
+    },
+    "outputs": {
+      "out": "sustained_packet_loss_anomaly"
+    }
+  },
+{% endif %}
+  {
+    "name": "Anomaly history of sustained packet loss",
+    "type": "accumulate",
+    "inputs": {
+      "in": "{{"has_sustained_packet_loss" if supports_raise_anomaly else "sustained_packet_loss_anomaly"}}"
+    },
+    "outputs": {
+      "out": "sustained_packet_loss_anomaly_history"
+    },
+    "properties": {
+      "max_samples": 50
+    }
+  }],
+  "label": "Monitor packet loss on servers"
+}

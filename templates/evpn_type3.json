@@ -1,0 +1,108 @@
+{
+  "processors": [
+    {
+      "inputs": {},
+      "type": "generic_data_collector",
+      "name": "EVPN remote VTEPs Type 3",
+      "outputs": {
+        "out": "EVPN remote VTEPs Type 3"
+      },
+      "properties": {
+        "vni_id": "virtual_network.vn_id",
+        "data_type": "dss",
+        "graph_query": "match(node('system', name='system', deploy_mode='deploy').out('hosted_vn_instances').node('vn_instance', name='local_vn_instance').out('instantiates').node('virtual_network', name='virtual_network'),node('security_zone', name='security_zone', ).out('member_vns').node('virtual_network', name='virtual_network', vn_type='vxlan'),node('virtual_network', name='virtual_network')   .out('instantiated_by').node('vn_instance', name='remote_vn_instance').in_('hosted_vn_instances').node('system', name='remote_system'),node('system', name='remote_system', deploy_mode='deploy').out('hosted_interfaces').node('interface', if_type='loopback', loopback_id=0, name='remote_loopback'),      node('system', name='remote_system', deploy_mode='deploy').out('hosted_interfaces').node('interface', if_type='logical_vtep', name='remote_vtep')    ).where(lambda system, remote_system: system != remote_system)",
+        "vrf": "security_zone.vrf_name",
+        "local_vlan": "local_vn_instance.vlan_id",
+        "service_name": "evpn_type3",
+        "remote_hostname": "remote_system.hostname",
+        "label": "virtual_network.label",
+        "system_id": "system.system_id",
+        "remote_vlan": "remote_vn_instance.vlan_id",
+        "key": "'%s:%s_%s' % (remote_loopback.ipv4_addr.split('/')[0], remote_vn_instance.vlan_id, remote_vtep.ipv4_addr.split('/')[0])",
+        "enable_streaming": false,
+        "remote_vtep": "remote_vtep.ipv4_addr.split('/')[0]",
+        "value_map": {
+          "1": "up"
+        }
+      }
+    },
+    {
+      "inputs": {
+        "in": "EVPN remote VTEPs Type 3"
+      },
+      "type": "match_count",
+      "name": "Expected remote VTEP count",
+      "outputs": {
+        "out": "Expected remote VTEP count"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "group_by": [
+          "system_id",
+          "vni_id",
+          "label"
+        ],
+        "reference_state": "up"
+      }
+    },
+    {
+      "inputs": {
+        "in": "EVPN remote VTEPs Type 3"
+      },
+      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "name": "Remote VTEP status",
+      "outputs": {
+        "out": "Remote VTEP status"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "state": "up"
+      }
+    },
+    {
+      "inputs": {
+        "in": "Expected remote VTEP count"
+      },
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "name": "Per-VNI VTEP Limit",
+      "outputs": {
+        "out": "Per-VNI VTEP Limit"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "range": {
+          "max": 32,
+          "min": null
+        },
+        "property": "value"
+      }
+    },
+    {
+      "inputs": {
+        "in": "Remote VTEP status"
+      },
+      "type": "anomaly",
+      "name": "Remote VTEP anomalies",
+      "outputs": {
+        "out": "Remote VTEP anomalies"
+      },
+      "properties": {
+        "enable_streaming": false
+      }
+    },
+    {
+      "inputs": {
+        "in": "Per-VNI VTEP Limit"
+      },
+      "type": "anomaly",
+      "name": "Per-VNI VTEP Limit anomalies",
+      "outputs": {
+        "out": "Per-VNI VTEP Limit anomalies"
+      },
+      "properties": {
+        "enable_streaming": false
+      }
+    }
+  ],
+  "label": "EVPN Remote VTEP Type 3"
+}

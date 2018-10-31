@@ -1,0 +1,119 @@
+{#
+    When create probe, set sustained to true or false to enable/disable reporting anomaly on sustained errors.
+    E.g: aos> probe create --blueprint bp_id --file /aos-cli/aos_cli/resources/probes/counters_error_anomalies.j2 --enable_anomaly_on_
+sustained_error True
+#}
+
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set sustained = function.is_true(sustained) %}
+{% set interface_query =
+    "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy', role=is_in(['leaf', 'spine', 'external_router']))"
+    ".out('hosted_interfaces')"
+    ".node('interface', if_type=is_in(['ip','ethernet']), name='interface')"
+    ".out('link')"
+    ".node('link')"
+    ".in_('link')"
+    ".node('interface', name='interface2')"
+    ".in_('hosted_interfaces')"
+    ".node('system', name='system2')).ensure_different('system', 'system2')" %}
+
+{% macro counter_error_anomaly_processors(error_type) %}
+    {
+      "name": "Interface counters {{error_type}} rate",
+      "type": "if_counter",
+      "properties": {
+        "graph_query": "{{interface_query}}",
+        "system_id": "system.system_id",
+        "counter_type": "{{error_type}}",
+        "interface": "interface.if_name",
+        "interface_desc": "interface.description or 'facing %s' % (system2.hostname or system2.label or system2.role)"
+      },
+      "outputs": {
+        "out": "{{error_type}}_rate"
+      }
+    },
+    {
+      "name": "Check non-zero {{error_type}} rate",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "{{error_type}}_rate"
+      },
+      "properties": {
+        "range": {
+          "max": 0
+        }
+{% if sustained %}
+      },
+      "outputs": {
+        "out": "has_{{error_type}}"
+      }
+    },
+    {
+      "name": "Detect sustained {{error_type}} rates",
+      "type": "{{ function.get_proc_name('time_in_state', aos_version) }}",
+      "inputs": {
+        "in": "has_{{error_type}}"
+      },
+      "properties": {
+        "time_window": 120,
+        "state_range": {
+          "true": [
+            {
+              "max": 20
+            }
+          ]
+        }
+{% endif %}
+
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+
+        "out": "{{("has_sustained_%s" if sustained else "has_%s") % error_type}}"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "type": "anomaly",
+      "name": "Raise anomaly when interface has {{error_type}}",
+      "inputs": {
+        "in": "{{("has_sustained_%s" if sustained else "has_%s") % error_type}}"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "{{("sustained_%s_anomaly" if sustained else "%s_anomaly") % error_type}}"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anomaly history of interface {{error_type}}",
+      "type": "accumulate",
+      "inputs": {
+{% if sustained %}
+        "in": "{{("has_sustained_%s" if supports_raise_anomaly else "sustained_%s_anomaly") % error_type}}"
+{% else %}
+        "in": "{{("has_%s" if supports_raise_anomaly else "%s_anomaly") % error_type}}"
+{% endif %}
+      },
+      "outputs": {
+        "out": "{{("sustained_%s_anomaly_history" if sustained else "%s_anomaly_history") % error_type}}"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+{% endmacro %}
+
+{
+  "processors": [
+    {% for error_type in ['alignment_errors', 'fcs_errors', 'runts', 'giants', 'tx_error_packets', 'rx_error_packets' ] %}
+      {{ counter_error_anomaly_processors(error_type) }}
+      {%- if not loop.last %},{% endif %}
+    {% endfor %}
+  ],
+  "label": "Counter Errors"
+}

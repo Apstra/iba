@@ -1,0 +1,80 @@
+{# Raise anomaly if switch does not have hardware vtep counters enabled or supported #}
+
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+
+{# We want to monitor only leafs with any vxlan endpoints and checking for presence
+   of logical_vtep is a simple way of doing this as AOS creates logical vteps only
+   on required leafs #}
+
+{% set graph_query = ([
+  "node('system', name='leaf', role='leaf', deploy_mode='deploy')",
+  ".out('hosted_interfaces')",
+  ".node('interface', if_type='logical_vtep', ipv4_addr=not_none())",
+] | join ) %}
+
+
+{
+  "label": "Unavailable hardware vtep counters",
+  "processors": [
+    {
+      "name": "Collect hardware vtep counter feature state",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "dss",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "vtep_counters",
+        "system_id": "leaf.system_id",
+        "key": "'counters_enabled'",
+        "value_map": {
+          "0": "disabled",
+          "1": "enabled"
+        }
+      },
+      "outputs": {
+        "out": "feature_enabled"
+      }
+    },
+    {
+      "name": "VTEP counter feature state history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "feature_enabled"
+      },
+      "outputs": {
+        "out": "feature_enabled_history"
+      },
+      "properties": {
+        "max_samples": 20
+      }
+    },
+    {
+      "name": "Hardware VTEP counters enabled",
+      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "inputs": {
+        "in": "feature_enabled"
+      },
+      "properties": {
+        "state": "enabled"
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "vtep_counters_disabled"
+      }
+    }
+{% if not supports_raise_anomaly %}
+    ,
+    {
+      "name": "VTEP counters disabled anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "vtep_counters_disabled"
+      },
+      "outputs": {
+        "out": "vtep_counters_disabled_anomaly"
+      }
+    }
+{% endif %}
+  ]
+}

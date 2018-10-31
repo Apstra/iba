@@ -1,0 +1,109 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{
+  "processors": [
+    {
+      "name": "Collect system memory rates",
+      "type": "generic_data_collector",
+      "outputs": {
+        "out": "system memory_rate"
+      },
+      "properties": {
+        "service_name": "resource_usage",
+        "system_id": "system.system_id",
+        "data_type": "ns",
+        "key": "'system|memory_rate'",
+        "graph_query": "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy', role=is_in(['leaf', 'spine'])))"
+      }
+    },
+    {
+      "name": "System memory rate history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "system memory_rate"
+      },
+      "outputs": {
+        "out": "system memory_rate_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    },
+    {
+      "name": "Periodic average of system memory rate",
+      "type": "periodic_average",
+      "inputs": {
+        "in": "system memory_rate"
+      },
+      "outputs": {
+        "out": "system average_memory_rate"
+      },
+      "properties": {
+        "period": 1800
+      }
+    },
+    {
+      "name": "System memory rate exceeding threshold",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "system average_memory_rate"
+      },
+      "outputs": {
+        "out": "system memory_rate_out_of_range"
+      },
+      "properties": {
+        "range": {
+          "max": 0
+        }
+      }
+    },
+    {
+      "name": "Sustained system memory leak",
+      "type": "{{ function.get_proc_name('time_in_state', aos_version) }}",
+      "inputs": {
+        "in": "system memory_rate_out_of_range"
+      },
+      "outputs": {
+        "out": "system memory_leak"
+      },
+      "properties": {
+        "time_window": 36000,
+        "state_range": {
+          "true": [
+            {
+              "max": 35000
+            }
+          ]
+        }
+{% if supports_raise_anomaly %}
+      , "raise_anomaly": true
+{% endif %}
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "name": "Raise anomaly when memory rate is sustained for a period",
+      "type": "anomaly",
+      "inputs": {
+        "in": "system memory_leak"
+      },
+      "outputs": {
+        "out": "system memory_leak_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anomaly history of memory usage",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"system memory_leak" if supports_raise_anomaly else "system memory_leak_anomaly"}}"
+      },
+      "outputs": {
+        "out": "system memory_leak_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+  ],
+  "label": "System memory anomalies"
+}

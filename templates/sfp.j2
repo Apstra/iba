@@ -1,0 +1,127 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set interface_query = "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy', role=is_in(['leaf', 'spine'])).out('hosted_interfaces').node('interface', if_type=is_in(['ip','ethernet']), name='interface'))" %}
+
+
+{% macro sfp_anomaly_processors(telemetry_type) %}
+    {
+      "name": "Interface transceiver {{telemetry_type}} data",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "dss",
+        "graph_query": "{{interface_query}}",
+        "service_name": "sfp",
+        "system_id": "system.system_id",
+        "key": "'%s|%s' % (interface.if_name, '{{telemetry_type}}')",
+        "interface": "interface.if_name",
+        "interface_desc": "interface.description",
+        "value_map": {
+          "0": "missing",
+          "1": "in_threshold",
+          "2": "exceeds_threshold"
+        }
+      },
+      "outputs": {
+        "out": "{{telemetry_type}}"
+      }
+    },
+    {
+      "name": "Check if {{telemetry_type}} ",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "{{telemetry_type}}"
+      },
+      "properties": {
+        "range": {
+          "max": 1
+        }
+{% if supports_raise_anomaly %}
+      , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "{{telemetry_type}}_is_true"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "type": "anomaly",
+      "name": "Raise anomaly when {{telemetry_type}} is true",
+      "inputs": {
+        "in": "{{telemetry_type}}_is_true"
+      },
+      "outputs": {
+        "out": "{{telemetry_type}}_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anomaly history of {{telemetry_type}}",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{("%s_is_true" if supports_raise_anomaly else "%s_anomaly") % telemetry_type}}"
+      },
+      "outputs": {
+        "out": "{{telemetry_type}}_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+{% endmacro %}
+
+{% macro sfp_general_info_processors(telemetry_type) %}
+    {
+      "name": "Interface transceiver {{telemetry_type}} data",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ts",
+        "graph_query": "{{interface_query}}",
+        "service_name": "sfp",
+        "system_id": "system.system_id",
+        "key": "'%s|%s' % (interface.if_name, '{{telemetry_type}}')",
+        "interface": "interface.if_name",
+        "interface_desc": "interface.description"
+      },
+      "outputs": {
+        "out": "{{telemetry_type}}"
+      }
+    }
+{% endmacro %}
+
+{% macro sfp_general_info_with_history_processors(telemetry_type) %}
+    {{ sfp_general_info_processors(telemetry_type) }},
+    {
+      "name": "{{telemetry_type}} history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{telemetry_type}}"
+      },
+      "outputs": {
+        "out": "{{telemetry_type}}_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+{% endmacro %}
+
+{
+  "processors": [
+    {% for telemetry_type in ['wave_length', 'media_type', 'vendor_sn'] %}
+      {{ sfp_general_info_processors(telemetry_type) }},
+    {% endfor %}
+
+    {# The 5 metrics here are checked for anomalies down and hence separated from above 
+       for loop, just for readability and in case we want to do something different for
+       these in future #}
+    {% for telemetry_type in ['tx_power', 'rx_power', 'temperature', 'tx_bias', 'voltage'] %}
+      {{ sfp_general_info_processors(telemetry_type) }},
+    {% endfor %}
+
+    {% for telemetry_type in ['tx_power_has_warn', 'rx_power_has_warn', 'temperature_has_warn', 'tx_bias_has_warn', 'voltage_has_warn'] %}
+      {{ sfp_anomaly_processors(telemetry_type) }}
+      {%- if not loop.last %},{% endif %}
+    {% endfor %}
+  ],
+  "label": "SFP probe"
+}

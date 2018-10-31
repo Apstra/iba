@@ -1,0 +1,82 @@
+{# Unicast routes overloaded systems - flag systems with unitcast routes exceeding specified threshold #}
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set query_2_1_1 =
+   "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy')"
+   ".out('port_map').node('port_map').out('hcl_entry')"
+   ".node('hcl_entry',name='hcl')"
+   ".where(lambda hcl: '%s'.lower() in hcl.label.lower()))" % device_type %}
+{% set query_2_2 =
+   "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy')"
+   ".out('interface_map').node('interface_map').out('device_profile')"
+   ".node('device_profile',name='device_type_node')"
+   ".where(lambda device_type_node: '%s'.lower() in device_type_node.label.lower()))" % device_type %}
+
+{
+  "processors": [
+    {
+      "name": "Unicast Route Breakdown per VRF",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ts",
+        "graph_query": "{{ query_2_1_1 if function.version_compare(aos_version, '<', '2.2') else query_2_2 }}",
+        "service_name": "table_usage",
+        "device_type": "device_type_node.label",
+        "system_id": "system.system_id",
+        "key": "'ip_routes'"
+      },
+      "outputs": {
+        "out": "unicast_route_breakdown"
+      }
+    },
+    {
+      "name": "Unicast Route count collector",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "{{ query_2_1_1 if function.version_compare(aos_version, '<', '2.2') else query_2_2 }}",
+        "service_name": "table_usage",
+        "system_id": "system.system_id",
+        "device_type": "device_type_node.label",
+        "key": "'total|num_ip_routes'"
+      },
+      "outputs": {
+        "out": "unicast_route_table_usage"
+      }
+    },
+    {
+      "name": "Check if unicast routing table usage exceeds threshold",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "unicast_route_table_usage"
+      },
+      "properties": {
+        "range": {
+          "max": {{max_unicast_routes}}
+        }
+{% if supports_raise_anomaly %}
+      , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "unicast_routes_overloaded_systems"
+      }
+    }
+{% if not supports_raise_anomaly %}
+    ,
+    {
+      "name": "Unicast routes overloaded system anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "unicast_routes_overloaded_systems"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "unicast_routes_overloaded_systems_anomaly"
+      }
+    }
+{% endif %}
+  ],
+  "label": "{{device_type}} Unicast route usage"
+}

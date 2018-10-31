@@ -1,0 +1,59 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% if function.version_compare(aos_version, '<', '2.2.1') %}
+
+** ERROR: This probe is not supported on AOS versions less than 2.2.1 **
+
+{% else %}
+{
+  "processors": [
+    {
+      "name": "Collect BGP session state",
+      "type": "service_data_collector",
+      "properties": {
+        "graph_query": "match(node('system', name='s1', system_id=not_none(), deploy_mode='deploy').out('hosted_interfaces').node('interface', name='intf', if_type='ip', ipv4_addr=not_none()).out('link').node('link').in_('link').node('interface', name='other_intf', ipv4_addr=not_none()).in_('hosted_interfaces').node('system', name='s2').where(lambda s2: s2.role == 'external_router' or s2.deploy_mode == 'deploy').ensure_different('s1', 's2'), node('domain', name='d1', domain_type='autonomous_system').out('composed_of_systems').node(name='s1'), node('domain', name='d2', domain_type='autonomous_system').out('composed_of_systems').node(name='s2'))",
+        "service_name": "bgp",
+        "system_id": "s1.system_id",
+        "description": "intf.description or 'facing %s' % (s2.hostname or s2.label or s2.role)",
+        "key": "(intf.ipv4_addr.split('/')[0], d1.domain_id, other_intf.ipv4_addr.split('/')[0], d2.domain_id, 'default', 'ipv4')",
+        "peer_hostname": "s2.hostname"
+      },
+      "outputs": {
+        "out": "bgp_session_state"
+      }
+    },
+    {
+      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "name": "Inactive BGP sessions",
+      "inputs": {
+        "in": "bgp_session_state"
+      },
+      "properties": {
+        "state": "up"
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "bgp_session_down"
+      }
+    }
+{% if not supports_raise_anomaly %}
+    ,
+    {
+      "type": "anomaly",
+      "name": "BGP session down anomaly",
+      "inputs": {
+        "in": "bgp_session_down"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "bgp_session_down_anomaly"
+      }
+    }
+{% endif %}
+  ],
+  "label": "Fabric BGP session anomalies"
+}
+{% endif %}

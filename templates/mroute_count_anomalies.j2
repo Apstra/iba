@@ -1,0 +1,100 @@
+{#
+   This probe is meant to detect abnormal changes in the number of s,g entries,
+   the number of sources, and the number of groups. This is done by checking
+   the standard deviation of these counters over the last {{ sample_count }}
+   samples and checking against the user specified threshold.
+#}
+
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set vrf_graph_query = "match(node('security_zone', name='sz').in_('sz').node('multicast_policy').out('rp').node('rendezvous_point').out('anycast_interface').node('interface').in_('hosted_interfaces').node('system', name='system'))" %}
+{% set total_graph_query = "match(node('rendezvous_point').out('member_interfaces').node('interface').in_('hosted_interfaces').node('system', name='system')).distinct()" %}
+
+{% macro mroute_anomaly_processors(counter_type, mroute_counter, threshold) %}
+    {
+      "name": "{{counter_type}}_{{ mroute_counter }}_processor",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "{{ vrf_graph_query if counter_type == 'vrf' else total_graph_query }}",
+        "service_name": "table_usage",
+        "system_id": "system.system_id",
+{% if counter_type == 'vrf' %}
+        "key": "'%s|{{ mroute_counter }}' % sz.vrf_name"
+{% else %}
+        "key": "'total|{{ mroute_counter }}'"
+{% endif %}
+      },
+      "outputs": {
+        "out": "{{counter_type}}_{{ mroute_counter }}_count"
+      }
+    },
+    {
+      "name": "{{counter_type}}_{{ mroute_counter }}_history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{counter_type}}_{{ mroute_counter }}_count"
+      },
+      "properties": {
+        "max_samples": {{ sample_count }}
+      },
+      "outputs": {
+        "out": "{{counter_type}}_{{ mroute_counter }}_history"
+      }
+    },
+    {
+      "name": "{{counter_type}}_{{ mroute_counter }}_std_dev_range",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "{{counter_type}}_{{ mroute_counter }}_history"
+      },
+      "properties": {
+        "range": {
+            "max": {{ threshold|float }}
+          },
+        "property": "std_dev"
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+          "out": "{{counter_type}}_{{ mroute_counter }}_outside_range"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "name": "{{counter_type}}_{{ mroute_counter}}_anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "{{counter_type}}_{{ mroute_counter }}_outside_range"
+      },
+      "outputs": {
+        "out": "{{counter_type}}_{{ mroute_counter }}_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "{{counter_type}}_{{ mroute_counter }} Anomaly History",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{("%s_%s_outside_range" if supports_raise_anomaly else "%s_%s_anomaly") % (counter_type, mroute_counter)}}"
+      },
+      "outputs": {
+        "out": "{{counter_type}}_{{ mroute_counter }}_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+{% endmacro %}
+
+{
+  "processors": [
+    {{ mroute_anomaly_processors('vrf', 'num_mcast_routes', s_g_std_dev_threshold) }},
+    {{ mroute_anomaly_processors('total', 'num_mcast_routes', s_g_std_dev_threshold) }},
+    {{ mroute_anomaly_processors('vrf', 'num_mcast_sources', s_std_dev_threshold) }},
+    {{ mroute_anomaly_processors('total', 'num_mcast_sources', s_std_dev_threshold) }},
+    {{ mroute_anomaly_processors('vrf', 'num_mcast_groups', g_std_dev_threshold) }},
+    {{ mroute_anomaly_processors('total', 'num_mcast_groups', g_std_dev_threshold) }}
+  ],
+  "label": "PIM Mroute StdDev Anomalies"
+}
