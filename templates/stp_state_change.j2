@@ -1,0 +1,104 @@
+{# Probe to raise an anomaly if last stp change was within last <observation_period> days' #}
+
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+
+{% set graph_query = "match(node('system', role='leaf', deploy_mode='deploy', name='leaf').out('hosted_interfaces').node('interface', if_type='port_channel', name='interface').out('composed_of').node('interface').out('link').node('link', role='leaf_l2_server').in_('link').node('interface').in_('hosted_interfaces').node('system', role='l2_server').out('hosted_vn_endpoints').node('vn_endpoint').out('member_of').node('virtual_network', name='vn').out('instantiated_by').node('vn_instance', name='vn_instance')).distinct(['leaf','interface','vn'])" %}
+
+{% set last_state_change_threshold_in_days = (obervation_period|default("3"))|int %}
+
+{% set obervation_period_in_seconds =  (last_state_change_threshold_in_days  * 86400)|int %}
+
+{
+  "processors": [
+    {
+      "name": "STP state change",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "stp",
+        "system_id": "leaf.system_id",
+        "key": "'%s|%s|last_change' % (interface.if_name, vn_instance.vlan_id)",
+        "description": "interface.description",
+        "vlan": "vn_instance.vlan_id"
+      },
+      "outputs": {
+        "out": "stp_state_last_change"
+      },
+      "stages" : [{
+        "name" : "{{'out' if function.version_compare(aos_version, '<', '2.3.0') else 'stp_state_last_change'}}",
+        "units": "seconds"
+      }]
+    },
+    {
+      "name": "STP state change within last {{ last_state_change_threshold_in_days }} days",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "stp_state_last_change"
+      },
+      "properties": {
+        "range": {
+          "min": {{ obervation_period_in_seconds }}
+        }
+{% if supports_raise_anomaly %}
+      , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "stp_state_changed_in_last_{{ last_state_change_threshold_in_days }}_days"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "name": "STP state change anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "stp_state_changed_in_last_{{ last_state_change_threshold_in_days }}_days"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "stp_state_changed_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anomaly history of STP state change",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"stp_state_changed_in_last_%s_days" % last_state_change_threshold_in_days if supports_raise_anomaly else "stp_state_changed_anomaly"}}"
+      },
+      "properties": {
+        "max_samples": 50
+      },
+      "outputs": {
+        "out": "stp_state_change_anomaly_history"
+      }
+    },
+    {
+      "name": "STP interface state",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "dss",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "stp",
+        "system_id": "leaf.system_id",
+        "key": "'%s|%s|stp_state' % (interface.if_name, vn_instance.vlan_id)",
+        "interface_description": "interface.description",
+        "vlan": "vn_instance.vlan_id",
+        "value_map": {
+          "0": "missing",
+          "1": "forwarding",
+          "2": "blocking",
+          "3": "listening",
+          "4": "learning"
+        }
+      },
+      "outputs": {
+        "out": "stp_state"
+      }
+    }
+  ],
+  "label": "Flag STP changes in last {{ last_state_change_threshold_in_days }} days"
+}

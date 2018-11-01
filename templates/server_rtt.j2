@@ -1,0 +1,138 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set prefix = (target_ip | default('')) or '8.8.8.8' %}
+{
+  "processors": [{
+    "name": "Avg round-trip time from servers in nanoseconds",
+    "type": "generic_data_collector",
+    "properties": {
+      "data_type": "ns",
+      "service_name": "ping",
+      "graph_query": "match(node('system', name='system', role=is_in(['l2_server', 'l3_server']), system_id=not_none()))",
+      "key": "'{{prefix}}_round_trip_avg'",
+      "system_id": "system.system_id",
+      "role": "system.role"
+    },
+    "outputs": {
+      "out": "rtt_avg"
+    }
+  },
+  {
+    "name": "History of average round-trip time",
+    "type": "accumulate",
+    "inputs": {
+      "in": "rtt_avg"
+    },
+    "outputs": {
+      "out": "rtt_avg_history"
+    },
+    "properties": {
+      "max_samples": 50
+    }
+  },
+  {
+    "name": "Detect slow rtt",
+    "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+    "inputs": {
+      "in": "rtt_avg"
+    },
+    "properties": {
+      "range": {
+        "max": 5000
+      }
+{% if supports_raise_anomaly %}
+      , "raise_anomaly": true
+{% endif %}
+    },
+    "outputs": {
+      "out": "has_slow_rtt"
+    }
+  },
+{% if not supports_raise_anomaly %}
+  {
+    "type": "anomaly",
+    "name": "Raise anomaly if rtt is slower than 5ms",
+    "inputs": {
+      "in": "has_slow_rtt"
+    },
+    "properties": {
+      "enable_streaming": true
+    },
+    "outputs": {
+      "out": "slow_rtt_anomaly"
+    }
+  },
+{% endif %}
+  {
+    "name": "Anomaly history of slow rtt",
+    "type": "accumulate",
+    "inputs": {
+      "in": "{{"has_slow_rtt" if supports_raise_anomaly else "slow_rtt_anomaly"}}"
+    },
+    "outputs": {
+      "out": "slow_rtt_anomaly_history"
+    },
+    "properties": {
+      "max_samples": 50
+    }
+  },
+  {
+    "name": "Standard deviation of rtt across servers",
+    "type": "std_dev",
+    "inputs": {
+      "in": "rtt_avg"
+    },
+    "properties": {
+      "group_by": ["role"]
+    },
+    "outputs": {
+      "out": "server_rtt_avg_stddev"
+    }
+  },
+  {
+    "name": "Detect imbalance in rtt among servers",
+    "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+    "inputs": {
+      "in": "server_rtt_avg_stddev"
+    },
+    "properties": {
+      "range": {
+        "max": 5000
+      }
+{% if supports_raise_anomaly %}
+      , "raise_anomaly": true
+{% endif %}
+    },
+    "outputs": {
+      "out": "has_high_rtt_stddev"
+    }
+  },
+{% if not supports_raise_anomaly %}
+  {
+    "type": "anomaly",
+    "name": "Raise anomaly if imabalance in rtt",
+    "inputs": {
+      "in": "has_high_rtt_stddev"
+    },
+    "properties": {
+      "enable_streaming": true
+    },
+    "outputs": {
+      "out": "high_rtt_stddev_anomaly"
+    }
+  },
+{% endif %}
+  {
+    "name": "Anomaly history of imbalance in rtt",
+    "type": "accumulate",
+    "inputs": {
+      "in": "{{"has_high_rtt_stddev" if supports_raise_anomaly else "high_rtt_stddev_anomaly"}}"
+    },
+    "outputs": {
+      "out": "high_rtt_stddev_anomaly_history"
+    },
+    "properties": {
+      "max_samples": 50
+    }
+  }],
+  "label": "Analyze round-trip time on servers"
+}

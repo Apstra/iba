@@ -1,0 +1,97 @@
+{# Raise anomaly if a given VXLAN does not have expected VTEPs on any leaf #}
+
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+
+
+{# We make an assumption here for the sake of performance. The assumption is that
+   a VXLAN has endpoints on each leaf that it is hosted on. #}
+{% set graph_query = ([
+  "match(node('system', name='leaf', role='leaf', deploy_mode='deploy')",
+  ".out('hosted_vn_instances')",
+  ".node('vn_instance', name='vni')",
+  ".out('instantiates')",
+  ".node('virtual_network', name='vn', vn_type='vxlan'),",
+  "node('system', name='remote_leaf', role='leaf', deploy_mode='deploy')",
+  ".out('hosted_vn_instances')",
+  ".node('vn_instance')",
+  ".out('instantiates')",
+  ".node('virtual_network', name='vn'),",
+  "node('system', name='leaf')",
+  ".out('hosted_interfaces')",
+  ".node('interface', name='logical_vtep', if_type='logical_vtep', ipv4_addr=not_none()),",
+  "node('system', name='remote_leaf')",
+  ".out('hosted_interfaces')",
+  ".node('interface', name='remote_logical_vtep', if_type='logical_vtep', ipv4_addr=not_none()))",
+  ".ensure_different('leaf', 'remote_leaf')",
+  ".ensure_different('logical_vtep', 'remote_logical_vtep')",
+  ".select('leaf', 'remote_leaf', 'vn', 'vni', 'remote_logical_vtep')",
+  ".distinct(['leaf', 'vni', 'remote_logical_vtep'])"
+] | join ) %}
+
+
+{
+  "label": "Verify expected VTEPs for VXLANs on all leafs",
+  "processors": [
+    {
+      "name": "Collect configured VTEPs",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "dss",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "vxlan_info",
+        "system_id": "leaf.system_id",
+        "key": "'vlan=%s|vtep=%s' % (vni.vlan_id, remote_logical_vtep.ipv4_addr.split('/')[0])",
+        "remote_leaf": "remote_leaf.hostname",
+        "vni": "vn.vn_id",
+        "value_map": {
+            "0": "absent",
+            "1": "present"
+        }
+      },
+      "outputs": {
+        "out": "vlan_vtep_status"
+      }
+    },
+    {
+      "name": "Check prsence of expected VTEPs per VLAN",
+      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "inputs": {
+        "in": "vlan_vtep_status"
+      },
+      "properties": {
+        "state": "present"
+{% if supports_raise_anomaly %}
+      , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "missing_vlan_vteps"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "type": "anomaly",
+      "name": "Missing VTEPs anomaly",
+      "inputs": {
+        "in": "missing_vlan_vteps"
+      },
+      "outputs": {
+        "out": "missing_vlan_vteps_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Missing VTEPs anomaly history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"missing_vlan_vteps" if supports_raise_anomaly else "missing_vlan_vteps_anomaly"}}"
+      },
+      "outputs": {
+        "out": "Missing VTEPs anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set query_2_1_1 =
+   "node('system', name='system', system_id=not_none(), deploy_mode='deploy')"
+   ".out('port_map').node('port_map').out('hcl_entry')"
+   ".node('hcl_entry', name='device_type_node')"
+   ".where(lambda device_type_node:"
+   "'%s'.lower() in device_type_node.json['os'].lower())" % os_family %}
+{% set query_2_2 =
+   "node('system', name='system', system_id=not_none(), deploy_mode='deploy')"
+   ".out('interface_map').node('interface_map').out('device_profile')"
+   ".node('device_profile', name='device_type_node')"
+   ".where(lambda device_type_node:"
+   "'%s'.lower() in device_type_node.selector['os'].lower())" % os_family %}
+
+{
+  "processors": [
+    {
+      "name": "OS version collector",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ts",
+        "graph_query": "{{ query_2_1_1 if function.version_compare(aos_version, '<', '2.2') else query_2_2 }}",
+        "service_name": "device_info",
+        "system_id": "system.system_id",
+        "hostname": "system.hostname",
+        "device_type": "device_type_node.label",
+        "key": "'os_version'"
+      },
+      "outputs": {
+        "out": "os_version"
+      }
+    },
+    {
+      "name": "Check expected OS version",
+      "type": "match_count",
+      "inputs": {
+        "in": "os_version"
+      },
+      "properties": {
+        "reference_state": "{{expected_os_version}}"
+      },
+      "outputs": {
+        "out": "count_matched_os_version"
+      }
+    },
+    {
+      "name": "Check if system version mismatches expected OS version",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "count_matched_os_version"
+      },
+      "properties": {
+        "range": {
+          "max": 1,
+          "min": 1
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "os_version_mismatch"
+      }
+    }
+{% if not supports_raise_anomaly %}
+    ,
+    {
+      "name": "OS version mismatch anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "os_version_mismatch"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "os_version_mismatch_anomaly"
+      }
+    }
+{% endif %}
+  ],
+  "label": "Match expected os version by OS family"
+}

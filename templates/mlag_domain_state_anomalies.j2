@@ -1,0 +1,60 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{
+  "processors": [
+    {
+      "name": "MLAG domain state",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "node('system', name='mlag_system', system_id=not_none(), deploy_mode='deploy').out('part_of_redundancy_group').node('redundancy_group')",
+        "service_name": "mlag_domain",
+        "system_id": "mlag_system.system_id",
+        "value_map": {
+          "0": "missing",
+          "1": "active",
+          "2": "down"
+        },
+        "key": "'domain_state'"
+      },
+      "outputs": {
+        "out": "mlag_domain_state"
+      }
+    },
+    {
+      "name": "Inactive MLAG domains",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "mlag_domain_state"
+      },
+      "properties": {
+        "range": {
+          "max": 1,
+          "min": 1
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "mlag_domain_state_down"
+      }
+    }
+{% if not supports_raise_anomaly %}
+    ,
+    {
+      "name": "MLAG domain down anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "mlag_domain_state_down"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "mlag_domain_state_down_anomaly"
+      }
+    }
+{% endif %}
+  ],
+  "label": "MLAG domain state anomalies"
+}

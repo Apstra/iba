@@ -1,0 +1,130 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set interface_query =
+    "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy')"
+    ".out('hosted_interfaces')"
+    ".node('interface', if_type=is_in(['ip','ethernet', 'port_channel']), name='interface')"
+    ".out('link')"
+    ".node('link', name='link')"
+    ".in_('link')"
+    ".node('interface')"
+    ".in_('hosted_interfaces')"
+    ".node('system', name='system2')).ensure_different('system', 'system2')" %}
+
+{# Following can be exposed as variables #}
+{% set new_style_stage_def = function.new_style_stage_def(aos_version) %}
+{# Retain 2min average values for last hour, 60min avg for last day,
+   12hr avg for last week and 24hr avg for last 3 weeks. This amounts to 90 samples
+   per metric, 180 samples per interface totaling to 18000 for 100 interfaces #}
+{% set first_summary_average_period_in_mins = 2 %}
+{% set first_summary_sample_count = 31 %}
+{% set second_summary_average_period_in_mins = 60 %}
+{% set second_summary_sample_count = 24 %}
+{% set third_summary_average_period_in_mins = 12*60 %}
+{% set third_summary_sample_count = 14 %}
+{% set forth_summary_average_period_in_mins = 24*60 %}
+{% set forth_summary_sample_count = 21 %}
+
+{% set summary_specs = [
+    (first_summary_average_period_in_mins, first_summary_sample_count),
+    (second_summary_average_period_in_mins, second_summary_sample_count),
+    (third_summary_average_period_in_mins, third_summary_sample_count),
+    (forth_summary_average_period_in_mins, forth_summary_sample_count)
+] %}
+
+{% set bps_suffix = function.bps_counter_suffix(aos_version) %}
+
+{% macro render_summarization(label, collector_output_stage) %}
+{% for idx in range(summary_specs|length) %}
+    {% set period_in_mins, sample_count = summary_specs[idx] %}
+    {% set input_stage_name = collector_output_stage if idx == 0 else (
+      '%s_traffic_%smin_avg' % (label, summary_specs[idx-1][0])) %}
+    {% if sample_count > 1024 %}
+    {{'Summary %d for %smin sample count exceeds max allowed 1024 for %s' % (
+      idx+1, period_in_mins, sample_count, label) }}
+    {% endif %}
+    {
+      "name": "{{function.humanize_seconds(period_in_mins*60)}} {{label}} traffic",
+      "type": "periodic_average",
+      "inputs": {
+        "in": "{{input_stage_name}}"
+      },
+      "properties": {
+        "period": {{period_in_mins * 60}}
+      },
+      "outputs": {
+        "out": "{{label}}_traffic_{{period_in_mins}}min_avg"
+      }
+    },
+    {
+      "name": "{{function.humanize_seconds(period_in_mins*60*sample_count)}} history {{label}} traffic",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{label}}_traffic_{{period_in_mins}}min_avg"
+      },
+      "outputs": {
+        "out": "{{label}}_traffic_last_{{function.humanize_seconds(period_in_mins*60*sample_count)}}"
+      },
+      "properties": {
+        "max_samples": {{sample_count}}
+      }
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+{% endmacro %}
+
+{% macro render(prefix, label) %}
+    {
+      "name": "{{label}} traffic",
+      "type": "if_counter",
+      "properties": {
+        "graph_query": "{{interface_query}}",
+        "system_id": "system.system_id",
+{% if bps_suffix %}
+        "counter_type": "{{ prefix }}_{{ bps_suffix }}",
+{% else %}
+        "counter_type": "{{ prefix }}_bytes",
+{% endif %}
+        "interface": "interface.if_name",
+        "role": "'mlag_peer' if link.role in ['leaf_peer_link', 'spine_spine'] else ('leaf_server' if 'server' in link.role else link.role)",
+        "description": "interface.description or 'facing %s' % (system2.hostname or system2.label or system2.role)"
+      },
+      "outputs": {
+        "out": "{{label}}_traffic"
+      },
+      "stages": [
+        {
+          "name": "{{ "%s_traffic"|format(label) if new_style_stage_def else "out" }}",
+          "units": "{{ "bps" if bps_suffix else "Bps" }}"
+        }
+      ]
+    },
+    {
+      "name": "Bucketed {{label}} traffic",
+      "type": "sum",
+      "inputs": {
+        "in": "{{label}}_traffic"
+      },
+      "properties": {
+        "group_by": ["role"]
+      },
+      "outputs": {
+        "out": "{{label}}_traffic_by_role"
+      },
+      "stages": [
+        {
+          "name": "{{ "%s_traffic_by_role"|format(label) if new_style_stage_def else "out" }}",
+          "units": "{{ "bps" if bps_suffix else "Bps" }}"
+        }
+      ]
+    },
+{{render_summarization(label, '%s_traffic' % label)}}
+    ,
+{{render_summarization('Grouped %s' % label, '%s_traffic_by_role' % label)}}
+{% endmacro %}
+
+{
+  "processors": [
+{{render('rx', 'Ingress')}},
+{{render('tx', 'Egress')}}
+  ],
+  "label": "Bandwidth utilization history"
+}

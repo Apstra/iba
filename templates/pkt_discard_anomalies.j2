@@ -1,0 +1,168 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set interface_query = "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy', role=is_in(['leaf', 'spine'])).out('hosted_interfaces').node('interface', if_type=is_in(['ip','ethernet']), name='interface'))" %}
+
+{
+  "processors": [
+    {
+      "name": "Ingress packet discard rate",
+      "type": "if_counter",
+      "properties": {
+        "graph_query": "{{interface_query}}",
+        "system_id": "system.system_id",
+        "counter_type": "rx_discard_packets",
+        "interface": "interface.if_name",
+        "description": "interface.description"
+      },
+      "outputs": {
+        "out": "ingress_pkt_discard_rate"
+      }
+    },
+    {
+      "name": "Check non-zero ingress packet discard rate",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "ingress_pkt_discard_rate"
+      },
+      "properties": {
+        "range": {
+          "max": 0
+        }
+      },
+      "outputs": {
+        "out": "ingress_has_pkt_discards"
+      }
+    },
+    {
+      "name": "Check if ingress packet discard rates overtime",
+      "type": "{{ function.get_proc_name('time_in_state', aos_version) }}",
+      "inputs": {
+        "in": "ingress_has_pkt_discards"
+      },
+      "properties": {
+        "time_window": 120,
+        "state_range": {
+          "true": [
+            {
+              "max": 20
+            }
+          ]
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "ingress_has_sustained_pkt_discards"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "type": "anomaly",
+      "name": "Raise anomaly when interface has sustained ingress packet discards",
+      "inputs": {
+        "in": "ingress_has_sustained_pkt_discards"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "ingress_pkt_discard_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anomaly history of sustained ingress packet discards",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"ingress_has_sustained_pkt_discards" if supports_raise_anomaly else "ingress_pkt_discard_anomaly"}}"
+      },
+      "outputs": {
+        "out": "ingress_pkt_discard_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    },
+    {
+      "name": "Egress packet discard rate",
+      "type": "if_counter",
+      "properties": {
+        "graph_query": "{{interface_query}}",
+        "system_id": "system.system_id",
+        "counter_type": "tx_discard_packets",
+        "interface": "interface.if_name",
+        "description": "interface.description"
+      },
+      "outputs": {
+        "out": "egress_pkt_discard_rate"
+      }
+    },
+    {
+      "name": "Check non-zero egress packet discard rate",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "egress_pkt_discard_rate"
+      },
+      "properties": {
+        "range": {
+          "max": 0
+        }
+      },
+      "outputs": {
+        "out": "egress_has_pkt_discards"
+      }
+    },
+    {
+      "name": "Check if egress packet discard rates overtime",
+      "type": "{{ function.get_proc_name('time_in_state', aos_version) }}",
+      "inputs": {
+        "in": "egress_has_pkt_discards"
+      },
+      "properties": {
+        "time_window": 120,
+        "state_range": {
+          "true": [
+            {
+              "max": 20
+            }
+          ]
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "egress_has_sustained_pkt_discards"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "type": "anomaly",
+      "name": "Raise anomaly when interface has sustained egress packet discards",
+      "inputs": {
+        "in": "egress_has_sustained_pkt_discards"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "egress_pkt_discard_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anomaly history of egress packet discards",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"egress_has_sustained_pkt_discards" if supports_raise_anomaly else "egress_pkt_discard_anomaly"}}"
+      },
+      "outputs": {
+        "out": "egress_pkt_discard_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+  ],
+  "label": "Sustained packet discards"
+}

@@ -1,0 +1,97 @@
+{# Raise anomaly if BUM traffic exceeds <percent_threshold> in total traffic over a vtep #}
+
+
+{# For each leaf having VTEP, we need to include all other VTEPs in the system.
+   Strictly speaking, for a given leaf we should include only subset of other
+   VTEPs that are relevant to active VXLANs on current leaf. Again doing this makes
+   the query quite complicated and likely costly to evaluate. This is fine because
+   this probe raises anomalies for BUM % exceeding a threshold and given threshold
+   is positive and non-existing elements are zero, we won't get any unneeded
+   anomalies
+#}
+
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set graph_query = ([
+  "match(node('system', name='leaf', role='leaf', deploy_mode='deploy')",
+    ".out('hosted_interfaces')",
+    ".node('interface', name='self_logical_vtep', if_type='logical_vtep', ipv4_addr=not_none()),",
+    "node('interface', name='logical_vtep', if_type='logical_vtep', ipv4_addr=not_none())",
+  ").ensure_different('self_logical_vtep', 'logical_vtep')"
+] | join) %}
+
+
+{
+  "label": "Percentage of BUM packets over a VTEP",
+  "processors": [
+    {
+      "name": "Collect BUM packet percentage on each vtep",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "vtep_counters",
+        "system_id": "leaf.system_id",
+        "key": "'%s_bum_to_total_percentage' % logical_vtep.ipv4_addr.partition('/')[0]"
+      },
+      "outputs": {
+        "out": "bum_to_total_percentage"
+      }
+    },
+    {
+      "name": "BUM percentage history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "bum_to_total_percentage"
+      },
+      "outputs": {
+        "out": "bum_to_total_percentage_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    },
+    {
+      "name": "BUM percentage exceeds threshold",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "bum_to_total_percentage"
+      },
+      "properties": {
+        "range": {
+          "max": {{ percent_threshold }}
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "bum_exceeds_threshold"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "type": "anomaly",
+      "name": "BUM percentage exceeds threshold anomaly",
+      "inputs": {
+        "in": "bum_exceeds_threshold"
+      },
+      "outputs": {
+        "out": "bum_traffic_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "BUM percentage anomalies history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"bum_exceeds_threshold" if supports_raise_anomaly else "bum_traffic_anomaly"}}"
+      },
+      "outputs": {
+        "out": "bum_traffic_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+  ]
+}

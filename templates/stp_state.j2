@@ -1,0 +1,73 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{
+  "processors": [
+    {
+      "name": "STP interface state",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "dss",
+        "graph_query": "match(node('system', role='leaf', deploy_mode='deploy', name='leaf').out('hosted_interfaces').node('interface', if_type='port_channel', name='interface').out('composed_of').node('interface').out('link').node('link', role='leaf_l2_server').in_('link').node('interface').in_('hosted_interfaces').node('system', role='l2_server').out('hosted_vn_endpoints').node('vn_endpoint').out('member_of').node('virtual_network', name='vn').out('instantiated_by').node('vn_instance', name='vn_instance')).distinct(['leaf','interface','vn'])",
+        "service_name": "stp",
+        "system_id": "leaf.system_id",
+        "key": "'%s|%s|stp_state' % (interface.if_name, vn_instance.vlan_id)",
+        "description": "interface.description",
+        "vlan": "vn_instance.vlan_id",
+        "value_map": {
+          "0": "missing",
+          "1": "forwarding",
+          "2": "blocking",
+          "3": "listening",
+          "4": "learning"
+        }
+      },
+      "outputs": {
+        "out": "stp_state"
+      }
+    },
+    {
+      "name": "Interfaces not in forwarding state",
+      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "inputs": {
+        "in": "stp_state"
+      },
+      "properties": {
+        "state": "forwarding"
+{% if supports_raise_anomaly %}
+      , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "stp_state_not_forwarding"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "name": "STP interface state anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "stp_state_not_forwarding"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "stp_state_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anomaly history of STP interface state",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"stp_state_not_forwarding" if supports_raise_anomaly else "stp_state_anomaly"}}"
+      },
+      "properties": {
+        "max_samples": 50
+      },
+      "outputs": {
+        "out": "stp_state_anomaly_history"
+      }
+    }
+  ],
+  "label": "STP state anomalies for non-forwarding ports"
+}

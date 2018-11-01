@@ -1,0 +1,59 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{
+  "processors": [
+    {
+      "name": "Collect BGP session state",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "dss",
+        "graph_query": "match(node('system', name='leaf', role='leaf', system_id=not_none(), deploy_mode='deploy').out('hosted_interfaces').node('interface', name='intf', ipv4_addr=not_none()).out('link').node('link').in_('link').node('interface', name='other_intf', ipv4_addr=not_none()).in_('hosted_interfaces').node('system', name='peer', role=ne('leaf'), deploy_mode='deploy'),node(name='intf').in_('member_interfaces').node('sz_instance').in_('instantiated_by').node('security_zone', name='sz'))",
+        "service_name": "bgp_iba",
+        "system_id": "leaf.system_id",
+        "key": "'%s_%s' % (sz.vrf_name, other_intf.ipv4_addr.split('/')[0])",
+        "interface": "intf.if_name",
+        "peer_hostname": "peer.hostname",
+        "value_map": {
+          "0": "missing",
+          "1": "up",
+          "2": "down"
+        }
+      },
+      "outputs": {
+        "out": "bgp_session_state"
+      }
+    },
+    {
+      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "name": "Inactive BGP sessions",
+      "inputs": {
+        "in": "bgp_session_state"
+      },
+      "properties": {
+        "state": "up"
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "bgp_session_down"
+      }
+    }
+{% if not supports_raise_anomaly %}
+    ,
+    {
+      "type": "anomaly",
+      "name": "BGP session down anomaly",
+      "inputs": {
+        "in": "bgp_session_down"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "bgp_session_down_anomaly"
+      }
+    }
+{% endif %}
+  ],
+  "label": "Leaf vrf-aware BGP session anomalies"
+}

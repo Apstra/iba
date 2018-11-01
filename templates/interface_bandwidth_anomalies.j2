@@ -1,0 +1,130 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set interface_query =
+    "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy', role=is_in(['leaf', 'spine', 'external_router']))"
+    ".out('hosted_interfaces')"
+    ".node('interface', if_type=is_in(['ip','ethernet']), name='interface')"
+    ".out('link')"
+    ".node('link', name='link')"
+    ".in_('link')"
+    ".node('interface')"
+    ".in_('hosted_interfaces')"
+    ".node('system', name='system2')).ensure_different('system', 'system2')" %}
+
+{# TODO (Shanshan): Read link speed from graph #}
+{# Where X is consistent with 2_stage_l3clos schema (10M, 100M, 1G, 2500MB, 5G, 10G, 25G, 40G, 50G, 100G) #}
+{# Y is an integer, e.g. if you want to set percentage threshold as 60%, substitute Y with 60 #}
+{% set bps_suffix = function.bps_counter_suffix(aos_version) %}
+{% set link_speed_in_bits_per_sec = (function.get_link_speed(link_speed)|int) %}
+{% set new_style_stage_def = function.new_style_stage_def(aos_version) %}
+{% set sustained = function.is_true(sustained) %}
+
+{% macro render(prefix, label) %}
+    {
+      "name": "Interface {{label}} traffic",
+      "type": "if_counter",
+      "properties": {
+        "graph_query": "{{interface_query}}",
+        "system_id": "system.system_id",
+{% if bps_suffix %}
+        "counter_type": "{{ prefix }}_{{ bps_suffix }}",
+{% else %}
+        "counter_type": "{{ prefix }}_bytes",
+{% endif %}
+        "interface": "interface.if_name",
+        "role": "link.role",
+        "description": "interface.description or 'facing %s' % (system2.hostname or system2.label or system2.role)"
+      },
+      "outputs": {
+        "out": "{{label}}_traffic"
+      },
+      "stages": [
+        {
+          "name": "{{ "%s_traffic"|format(label) if new_style_stage_def else "out" }}",
+          "units": "{{ "bps" if bps_suffix else "Bps" }}"
+        }
+      ]
+    },
+    {
+      "name": "{{label}} traffic exceeds threshold?",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "{{label}}_traffic"
+      },
+      "properties": {
+        "range": {
+{% if bps_suffix %}
+          "max": {{(link_speed_in_bits_per_sec * (percent_threshold|int)) // 100}}
+{% else %}
+          "max": {{((link_speed_in_bits_per_sec/8) * (percent_threshold|int)) // 100}}
+{% endif %}
+        }
+{% if supports_raise_anomaly and not sustained %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "{{label}}_traffic_exceeds_threshold"
+      }
+    },
+{% if sustained %}
+    {
+      "name": "Sustained {{label}} traffic exceeds threshold?",
+      "type": "{{ function.get_proc_name('time_in_state', aos_version) }}",
+      "inputs": {
+        "in": "{{label}}_traffic_exceeds_threshold"
+      },
+      "properties": {
+        "time_window": 120,
+        "state_range": {
+          "true": [
+            {
+              "max": 20
+            }
+          ]
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "sustained_{{label}}_traffic_exceeds_threshold"
+      }
+    },
+{% endif %}
+{% if not supports_raise_anomaly %}
+    {
+      "name": "{{'Sustained' if sustained else ''}}{{label}} traffic exceeds threshold anomaly"
+      "type": "anomaly",
+      "inputs": {
+        "in": "{{'sustained_' if sustained else ''}}{{label}}_traffic_exceeds_threshold"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "{{'sustained_' if sustained else ''}}{{label}}_traffic_exceeds_threshold_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anomaly history of {{label}} traffic exceeding threhold",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{'sustained_' if sustained else ''}}{{label}}_traffic_exceeds_threshold{{'' if supports_raise_anomaly else '_anomaly'}}"
+      },
+      "outputs": {
+        "out": "{{'sustained_' if sustained else ''}}{{label}}_traffic_exceeds_threshold_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+{% endmacro %}
+
+{
+  "processors": [
+{{render('rx', 'Ingress')}},
+{{render('tx', 'Egress')}}
+  ],
+  "label": "Overloaded interface bandwidth usage"
+}

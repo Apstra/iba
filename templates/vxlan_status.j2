@@ -1,0 +1,92 @@
+{# We want to monitor only leafs with any vxlan endpoints and checking for presence
+   of logical_vtep is a simple way of doing this as AOS creates logical vteps only
+   on required leafs #}
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set graph_query = ([
+  "node('system', name='leaf', role='leaf', deploy_mode='deploy')",
+  ".out('hosted_interfaces')",
+  ".node('interface', if_type='logical_vtep', ipv4_addr=not_none())",
+] | join ) %}
+
+{
+  "processors": [
+    {
+      "name": "Vxlan status",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "dss",
+        "graph_query": "{{graph_query}}",
+        "service_name": "vxlan_info",
+        "system_id": "leaf.system_id",
+        "hostname": "leaf.hostname",
+        "key": "'protocol_status'",
+        "value_map": {
+          "0": "missing",
+          "1": "up",
+          "2": "down"
+        }
+      },
+      "outputs": {
+        "out": "vxlan_status"
+      }
+    },
+    {
+      "name": "History of vxlan status",
+      "type": "accumulate",
+      "inputs": {
+        "in": "vxlan_status"
+      },
+      "properties": {
+        "max_samples": 50
+      },
+      "outputs": {
+        "out": "vxlan_status_history"
+      }
+    },
+    {
+      "name": "Vxlan status not up",
+      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "inputs": {
+        "in": "vxlan_status"
+      },
+      "properties": {
+        "state": "up"
+{% if supports_raise_anomaly %}
+      , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "vxlan_status_not_up"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "name": "Vxlan status anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "vxlan_status_not_up"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "vxlan_status_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anomaly history of Vxlan status",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"vxlan_status_not_up" if supports_raise_anomaly else "vxlan_status_anomaly"}}"
+      },
+      "properties": {
+        "max_samples": 50
+      },
+      "outputs": {
+        "out": "vxlan_status_anomaly_history"
+      }
+    }
+  ],
+  "label": "VXLAN Status"
+}

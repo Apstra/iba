@@ -1,0 +1,80 @@
+{#
+  This probe ensures every leaf-spine and leaf-leaf link in every VRF has a PIM neighbor.
+  Also ensure all SVI interfaces have a PIM neighbor.
+#}
+
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set link_graph_query = "match(node('system', name='system', role=is_in(['leaf', 'spine']), deploy_mode='deploy').out('hosted_interfaces').node('interface', name='intf').out('link').node('link', role=is_in(['spine_leaf', 'leaf_peer_link'])),node(name='intf').in_('member_interfaces').node('sz_instance').in_('instantiated_by').node('security_zone', name='sz'))" %}
+{% set svi_graph_query = "match(node('interface', name='intf', if_type='svi').in_('member_interfaces').node('sz_instance').in_('instantiated_by').node('security_zone', name='sz'),node(name='intf').in_('member_interfaces').node('vn_instance').in_('hosted_vn_instances').node('system', name='system'))" %}
+
+{% macro pim_neighbor_anomaly_processors(query, stage_name) %}
+    {
+      "name": "pim neighbor {{stage_name}}",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "{{ query }}",
+        "service_name": "pim_neighbor_count",
+        "system_id": "system.system_id",
+        "key": "'%s|%s' % (sz.vrf_name, intf.if_name)",
+        "description": "intf.description"
+      },
+      "outputs": {
+        "out": "neighbor_count_{{stage_name}}"
+      }
+    },
+    {
+      "name": "neighbor_count_anomaly {{stage_name}}",
+        "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+        "inputs": {
+          "in": "neighbor_count_{{stage_name}}"
+        },
+      "properties": {
+        "range": {
+          "min": 1,
+          "max": 1
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "neighbor_count_anomaly_{{stage_name}}"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "name": "pim_neighbor_anomaly {{stage_name}}",
+      "type": "anomaly",
+      "inputs": {
+        "in": "neighbor_count_anomaly_{{stage_name}}"
+      },
+      "outputs": {
+        "out": "pim_neighbor_anomaly_{{stage_name}}"
+      }
+    },
+{% endif %}
+    {
+      "name": "{{stage_name}}_neighbor_anomaly History",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"neighbor_count_anomaly" if supports_raise_anomaly else "pim_neighbor_anomaly"}}_{{stage_name}}"
+      },
+      "outputs": {
+        "out": "{{stage_name}}_neighbor_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+{% endmacro %}
+
+
+{
+  "processors": [
+    {{ pim_neighbor_anomaly_processors(link_graph_query, 'link') }},
+    {{ pim_neighbor_anomaly_processors(svi_graph_query, 'svi') }}
+  ],
+  "label": "PIM Neighbor Anomalies"
+}
+

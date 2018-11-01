@@ -1,0 +1,21 @@
+{% set graph_query = "match(node('security_zone', name='sz').in_('sz').node('multicast_policy').out('rp').node('rendezvous_point').out('anycast_interface').node('interface', name='anycast_ip').in_('hosted_interfaces').node('system', name='system'))"%}
+
+{
+  "processors": [
+    {
+      "name": "multicast_group_info",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ts",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "multicast_groups",
+        "system_id": "system.system_id",
+        "key": "sz.vrf_name"
+      },
+      "outputs": {
+        "out": "multicast_data"
+      }
+    }
+  ],
+  "label": "Multicast Group Info from RPs"
+}

@@ -1,0 +1,66 @@
+{# note: we assume that all border leafs in all vrfs have uniform peering with
+   external routers. In the context of this probe, this means they have equal number
+   of connections to the router
+#}
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{
+  "processors": [
+    {
+      "name": "Collect default gateway count on border leafs",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "match(node('system', name='leaf', role='leaf', deploy_mode='deploy').out('hosted_interfaces').node('interface', name='intf').out('link').node('link', role='to_external_router').in_('link').node('interface').in_('hosted_interfaces').node('system', role='external_router'), node(name='intf').in_('member_interfaces').node('sz_instance').in_('instantiated_by').node('security_zone', name='sz')).select('leaf', 'sz').distinct()",
+        "service_name": "route_count",
+        "system_id": "leaf.system_id",
+        "key": "'%s_0.0.0.0/0' % sz.vrf_name"
+      },
+      "outputs": {
+        "out": "border_leaf_default_gw_count"
+      }
+    },
+    {
+      "name": "Check if default gateway count is as expected",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "border_leaf_default_gw_count"
+      },
+      "properties": {
+        {% set leaf_router_paths = function.query.iterate(blueprint, function.query.match(function.query.node('system', name='leaf', role='leaf', deploy_mode='deploy').out('hosted_interfaces').node('interface', name='intf').out('link').node('link', role='to_external_router').in_('link').node('interface').in_('hosted_interfaces').node('system', role='external_router'), function.query.node(name='intf').in_('member_interfaces').node('sz_instance').in_('instantiated_by').node('security_zone', name='sz'))) | list %}
+        {% set default_gw_count = 0 %}
+        {% set leaf_router_paths_sz_group = None %}
+{% if leaf_router_paths %}
+        {% set leaf_router_paths_sz_group = (leaf_router_paths | groupby('leaf.system_id') | first).list | groupby('sz.vrf_name') | first %}
+        {% set default_gw_count = leaf_router_paths_sz_group.list | length %}
+{% endif %}
+        "range": {
+          "min": {{default_gw_count}},
+          "max": {{default_gw_count}}
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "mismatched_border_leafs"
+      }
+    }
+{% if not supports_raise_anomaly %}
+    ,
+    {
+      "name": "Mismatched border leaf anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "mismatched_border_leafs"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "mismatched_border_leafs_anomaly"
+      }
+    }
+{% endif %}
+  ],
+  "label": "Border leaf default gateway count anomalies"
+}

@@ -1,0 +1,72 @@
+{#
+  Ensure all RPs have redundancy by confirming the minimum number of user
+  specified peers.
+#}
+
+{% set graph_query = "match(node('security_zone', name='sz').in_('sz').node('multicast_policy').out('rp').node('rendezvous_point').out('anycast_interface').node('interface', name='anycast_ip').in_('hosted_interfaces').node('system', name='system'))"%}
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+
+{
+  "processors": [
+    {
+      "name": "anycast rp processor",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "anycast_rp",
+        "system_id": "system.system_id",
+        "key": "'%s|%s|peer_count' % (sz.vrf_name, anycast_ip.ipv4_addr.split('/')[0])"
+      },
+      "outputs": {
+        "out": "peer_count"
+      }
+    },
+    {
+      "name": "peer count minimum",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "peer_count"
+      },
+      "properties": {
+        "range": {
+            "min": {{ peer_count|int }}
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+          "out": "peer_count_below_min"
+      }
+    }
+{% if not supports_raise_anomaly %}
+    ,
+    {
+      "name": "anycast_rp_anomaly",
+      "type": "anomaly",
+      "inputs": {
+        "in": "peer_count_below_min"
+      },
+      "outputs": {
+        "out": "anycast_rp_anomaly"
+      }
+    }
+{% endif %}
+    ,
+    {
+      "name": "Anycast RP Peer Count Anomaly History",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"peer_count_below_min" if supports_raise_anomaly else "anycast_rp_anomaly"}}"
+      },
+      "outputs": {
+        "out": "anycast_rp_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+    ],
+  "label": "Anycast RP Peer Count Anomalies"
+}

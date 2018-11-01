@@ -1,0 +1,72 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set interface_query = "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy', role=is_in(['leaf', 'spine'])).out('hosted_interfaces').node('interface', if_type=is_in(['ip','ethernet']), name='interface'))" %}
+{% macro render(metric_name, label) %}
+    {
+      "name": "{{ label }}",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "{{interface_query}}",
+        "service_name": "interface_buffer",
+        "system_id": "system.system_id",
+        "key": "'%s|{{ metric_name }}' % interface.if_name",
+        "interface_desc": "interface.description"
+      },
+      "outputs": {
+        "out": "{{ metric_name }}_rate"
+      }
+    },
+    {
+      "name": "Has {{ label }}",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "{{ metric_name }}_rate"
+      },
+      "properties": {
+        "range": {
+          "max": 0
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "has_{{ metric_name }}_rate"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "type": "anomaly",
+      "name": "{{ label }} anomaly",
+      "inputs": {
+        "in": "has_{{ metric_name }}_rate"
+      },
+      "properties": {
+        "enable_streaming": true
+      },
+      "outputs": {
+        "out": "{{ metric_name }}_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "{{ label }} Anomaly History",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{('has_%s_rate' if supports_raise_anomaly else '%s_anomaly') % metric_name}}"
+      },
+      "outputs": {
+        "out": "{{ metric_name }}_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+{% endmacro %}
+{
+  "processors": [
+{{render('out_drop_uc_pkts', 'Egress unicast packet drops')}},
+{{render('out_drop_mc_pkts', 'Egress multicast packet drops')}}
+  ],
+  "label": "Interface queue drops"
+}
