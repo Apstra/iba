@@ -44,6 +44,22 @@ To access each tutorial directly, click on the links below:
 #### [Specific Interface Flapping](docs/specific_interface_flapping.ipynb)  
     Generates Probe to Determine if Interfaces are Flapping
 
+## Using AOS Web UI to create the probes
+
+Follow the steps below to create the probes under aospy folder using AOS Web UI
+
+1. In a terminal window, go to the directory where you cloned this repository
+2. Type `python` to enter the python interactive shell
+3. Within the python shell, do the following
+
+```
+  >>> from aospy.ibaprobelib.mlag_imbalance import mlag_imbalance_probe
+  >>> import json; print json.dumps(mlag_imbalance_probe('mlag imbalance', 120, 10000))
+```
+
+4. Go to AOS Web UI > Blueprints > Blueprint > Analytics > Create Probe > Import Probe
+5. Paste the JSON output and create the probe
+
 # More probes
 
 You can find many more probes in the `templates` subfolder. Refer to its
