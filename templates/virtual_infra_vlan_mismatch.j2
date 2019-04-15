@@ -1,0 +1,162 @@
+{# Only top-level interfaces have vn_endpoint relationships, so we need 2 queries #}
+{% set vsphere_interface_vlan_configs_lag = (
+    "match(node('system', name='server', system_type='server')"
+    ".in_('is_realized_by')"
+    ".node('hypervisor', name='hv')"
+    ".out('has')"
+    ".node('pnic', name='hv_nic')"
+    ".out('carries')"
+    ".node('vnet', name='vn'),"
+    "node(name='hv_nic')"
+    ".out('is_realized_by')"
+    ".node('interface')"
+    ".in_('composed_of')"
+    ".node('interface', name='server_intf')).distinct(['server', 'server_intf'])") %}
+
+{% set vsphere_interface_vlan_configs_no_lag = (
+    "match(node('system', name='server', system_type='server')"
+    ".in_('is_realized_by')"
+    ".node('hypervisor', name='hv')"
+    ".out('has')"
+    ".node('pnic', name='hv_nic')"
+    ".out('carries')"
+    ".node('vnet', name='vn'),"
+    "node(name='hv_nic')"
+    ".out('is_realized_by')"
+    ".node('interface', name='server_intf')"
+    ".having("
+    "node(name='server_intf')"
+    ".in_('composed_of')"
+    ".node('interface'), at_most=0))") %}
+
+{% set aos_interface_vlan_configs = (
+    "match(node('system', name='server', role='l2_server')"
+    ".out('hosted_interfaces')"
+    ".node('interface', name='server_intf')"
+    ".out('hosted_vn_endpoints')"
+    ".node('vn_endpoint', name='vn_endpoint')"
+    ".in_('member_endpoints')"
+    ".node('virtual_network')"
+    ".out('instantiated_by')"
+    ".node('vn_instance', name='vn_instance')"
+    ".having("
+    "node(name='vn_instance')"
+    ".in_('hosted_vn_instances')"
+    ".node('system')"
+    ".out('hosted_interfaces')"
+    ".node('interface')"
+    ".out('link')"
+    ".node('link')"
+    ".in_('link')"
+    ".node('interface')"
+    ".in_('hosted_interfaces')"
+    ".node(name='server'), at_least=1),"
+    "node(name='server').in_('is_realized_by').node('hypervisor'))"
+    ".distinct(['server', 'vn_endpoint'])") %}
+
+{% if function.version_compare(aos_version, '<', '2.3.0') %}
+
+** ERROR: This probe is not supported on AOS versions less than 2.3.0 **
+
+{% else %}
+
+{
+  "label": "Virtual Infra and Fabric Vlan config mismatch",
+  "processors": [
+    {
+      "name": "vSphere expected VLAN configs",
+      "type": "generic_graph_collector",
+      "properties": {
+        "graph_query": [
+          "{{vsphere_interface_vlan_configs_lag}}",
+          "{{vsphere_interface_vlan_configs_no_lag}}"
+        ],
+        "server": "server.label",
+        "interface": "server_intf.id",
+        "interface_desc": "server_intf.description",
+        "vlan": "vn.vlan",
+        "traffic": "'tagged' if vn.vlan != 0 else 'untagged'",
+        "hypervisor": "hv.label",
+        "value": "1",
+        "data_type": "ns"
+      },
+      "outputs": {
+        "out": "vSphere VLAN configs"
+      }
+    },
+    {
+      "name": "AOS configured VLAN configs",
+      "type": "generic_graph_collector",
+      "properties": {
+        "graph_query": "{{aos_interface_vlan_configs}}",
+        "server": "server.label",
+        "interface": "server_intf.id",
+        "interface_desc": "server_intf.description",
+        "vlan": "0 if vn_endpoint.tag_type == 'untagged' else vn_instance.vlan_id",
+        "traffic": "'untagged' if vn_endpoint.tag_type == 'untagged' else 'tagged'",
+        "value": "1",
+        "data_type": "ns"
+      },
+      "outputs": {
+        "out": "AOS VLAN configs"
+      }
+    },
+    {
+      "name": "Differences between vSphere and AOS",
+      "type": "set_comparison",
+      "properties": {
+        "significant_keys": [
+          "server",
+          "vlan",
+          "interface",
+          "interface_desc",
+          "traffic"
+        ]
+      },
+      "inputs": {
+        "A": "vSphere VLAN configs",
+        "B": "AOS VLAN configs"
+      },
+      "outputs": {
+        "A - B": "vSphere Only",
+        "B - A": "AOS Only",
+        "A & B": "Common in AOS and vSphere"
+      }
+    },
+    {
+      "name": "Check for AOS missing VLAN configs",
+      "type": "range_check",
+      "inputs": {
+        "in": "vSphere Only"
+      },
+      "outputs": {
+        "out": "AOS missing VLAN configs anomaly"
+      },
+      "properties": {
+        "property": "sample_count",
+        "range": {
+          "max": 0
+        },
+        "raise_anomaly": true
+      }
+    },
+    {
+      "name": "Check for vSphere missing VLAN configs",
+      "type": "range_check",
+      "inputs": {
+        "in": "AOS Only"
+      },
+      "outputs": {
+        "out": "vSphere missing VLAN configs anomaly"
+      },
+      "properties": {
+        "property": "sample_count",
+        "range": {
+          "max": 0
+        },
+        "raise_anomaly": true
+      }
+    }
+  ]
+}
+{% endif %}

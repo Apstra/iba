@@ -3,8 +3,8 @@
 {% set query_2_1_1 =
    "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy')"
    ".out('port_map').node('port_map').out('hcl_entry')"
-   ".node('hcl_entry',name='hcl')"
-   ".where(lambda hcl: '%s'.lower() in hcl.label.lower()))" % device_type %}
+   ".node('hcl_entry',name='device_type_node')"
+   ".where(lambda device_type_node: '%s'.lower() in device_type_node.label.lower()))" % device_type %}
 {% set query_2_2 =
    "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy')"
    ".out('interface_map').node('interface_map').out('device_profile')"

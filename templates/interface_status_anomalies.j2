@@ -1,11 +1,24 @@
+{% set query =
+    "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy')"
+    ".out('hosted_interfaces')"
+    ".node('interface', name='intf', if_type=is_in(['ip', 'ethernet']))"
+    ".out('link')"
+    ".node('link')"
+    ".in_('link')"
+    ".node('interface', name='peer_intf')"
+    ".in_('hosted_interfaces')"
+    ".node('system', name='peer')"
+    ".where(lambda peer: peer.role == 'external_router' or peer.deploy_mode == 'deploy')"
+    ").ensure_different('system', 'peer')" %}
 {% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+
 {
   "processors": [
     {
       "name": "Collect physical interface state",
       "type": "service_data_collector",
       "properties": {
-        "graph_query": "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy').out('hosted_interfaces').node('interface', name='intf', if_type=is_in(['ip', 'ethernet'])).out('link').node('link').in_('link').node('interface', name='peer_intf').in_('hosted_interfaces').node('system', name='peer', deploy_mode='deploy')).ensure_different('system', 'peer')",
+        "graph_query": "{{query}}",
         "service_name": "interface",
         "system_id": "system.system_id",
         "key": "intf.if_name",

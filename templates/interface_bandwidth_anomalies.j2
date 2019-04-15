@@ -4,11 +4,11 @@
     ".out('hosted_interfaces')"
     ".node('interface', if_type=is_in(['ip','ethernet']), name='interface')"
     ".out('link')"
-    ".node('link', name='link')"
+    ".node('link', name='link', speed='%s')"
     ".in_('link')"
     ".node('interface')"
     ".in_('hosted_interfaces')"
-    ".node('system', name='system2')).ensure_different('system', 'system2')" %}
+    ".node('system', name='system2')).ensure_different('system', 'system2')" % link_speed %}
 
 {# TODO (Shanshan): Read link speed from graph #}
 {# Where X is consistent with 2_stage_l3clos schema (10M, 100M, 1G, 2500MB, 5G, 10G, 25G, 40G, 50G, 100G) #}

@@ -110,6 +110,7 @@ They also serve as examples to help build custom probes yourself.
 | Probe | Description
 | ---------- | -----------
 | memory_usage_threshold_anomalies | Detect memory leaks in specified process on all switches in the Fabric |
+| power_supply_anomalies | Detect faults in power supply status, power supply fan status and power supply temperature status |
 | system_memory_usage_threshold_anomalies | Detect switches having potential memory leaks in the Fabric |
 
 

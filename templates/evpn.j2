@@ -1,0 +1,287 @@
+{% macro l2_vni_graph_query() %}
+match(
+  match(
+    node('system', name='system', deploy_mode='deploy', role='leaf'),
+    node('system', name='remote_system', deploy_mode='deploy', role='leaf')
+  ).ensure_different('system', 'remote_system'),
+
+  node('system', name='system')
+  .out('hosted_vn_instances')
+  .node('vn_instance', name='local_vn_instance')
+  .out('instantiates')
+  .node('virtual_network', name='virtual_network'),
+
+  node('security_zone', name='security_zone', )
+  .out('member_vns')
+  .node('virtual_network', name='virtual_network', vn_type='vxlan'),
+
+  node('virtual_network', name='virtual_network')
+  .out('instantiated_by').node('vn_instance', name='remote_vn_instance')
+  .in_('hosted_vn_instances').node('system', name='remote_system'),
+
+  node('system', name='remote_system')
+  .out('hosted_interfaces')
+  .node('interface', if_type='loopback', loopback_id=0, name='remote_loopback'),
+
+  node('system', name='remote_system')
+  .out('hosted_interfaces').node('interface', if_type='logical_vtep', name='remote_vtep'),
+
+).having(
+   node('system', name='system')
+   .out('part_of_redundancy_group')
+   .node('redundancy_group', name='redundancy_group')
+   .in_('composed_of_redundancy_group')
+   .node('domain', name='domain', domain_type='mlag')
+   .out('composed_of_redundancy_group')
+   .node(name='redundancy_group')
+   .out('composed_of_systems')
+   .node('system', name='remote_system'),
+  names=['system', 'remote_system'], at_most=0
+)
+{% endmacro %}
+
+{% macro evpn_type5(ip_version='ipv4') %}
+match(
+  match(
+    node('system', name='system', deploy_mode='deploy', role='leaf'),
+    node('system', name='remote_system', deploy_mode='deploy', role='leaf')
+  ).ensure_different('system', 'remote_system'),
+
+  node('system', name='remote_system')
+  .out('hosted_vn_instances')
+  .node('vn_instance', name='remote_vn_instance')
+  .out('instantiates')
+  .node('virtual_network', name='virtual_network', vn_type='vxlan', {{ip_version}}_subnet=not_none())
+  .in_('member_vns')
+  .node('security_zone', name='security_zone', sz_type='evpn'),
+
+  node('system', name='remote_system')
+  .out('hosted_interfaces')
+  .node('interface', if_type='loopback', loopback_id=0, name='remote_loopback'),
+
+  node('system', name='remote_system')
+  .out('hosted_interfaces').node('interface', if_type='logical_vtep', name='remote_vtep'),
+
+).having(
+  node('system', name='system')
+  .out('hosted_vn_instances')
+  .node('vn_instance')
+  .out('instantiates')
+  .node('virtual_network', name='virtual_network'),
+  names=['system', 'virtual_network'], at_most=0
+).having(
+  node('system', name='system')
+  .out('hosted_sz_instances')
+  .node('sz_instance')
+  .in_('instantiated_by')
+  .node('security_zone', name='security_zone'),
+  names=['system', 'security_zone'], at_least=1
+)
+{% endmacro %}
+{
+  "label": "EVPN IBA Telemetry",
+  "processors": [
+    {
+      "inputs": {},
+      "type": "generic_data_collector",
+      "name": "EVPN Type 3 for L2 VNIs",
+      "outputs": {
+        "out": "EVPN Type 3 for L2 VNIs"
+      },
+      "properties": {
+        "vni_id": "virtual_network.vn_id",
+        "data_type": "dss",
+        "graph_query": "{{ l2_vni_graph_query().split('\n')|join }}",
+        "local_vlan": "local_vn_instance.vlan_id",
+        "service_name": "evpn_type3",
+        "remote_hostname": "remote_system.hostname",
+        "label": "virtual_network.label",
+        "rd": "'%s:%s' % (remote_loopback.ipv4_addr.split('/')[0], remote_vn_instance.vlan_id)",
+        "system_id": "system.system_id",
+        "vrf": "security_zone.vrf_name",
+        "key": "'%s:%s|%s' % (remote_loopback.ipv4_addr.split('/')[0], remote_vn_instance.vlan_id, remote_vtep.ipv4_addr.split('/')[0])",
+        "route_target": "'%s:1' % virtual_network.vn_id",
+        "enable_streaming": false,
+        "remote_vtep": "remote_vtep.ipv4_addr.split('/')[0]",
+        "value_map": {
+          "1": "up"
+        },
+        "remote_vlan": "remote_vn_instance.vlan_id"
+      }
+    },
+    {
+      "inputs": {},
+      "type": "generic_data_collector",
+      "name": "IPV4 EVPN Type 5 routing for virtual networks",
+      "outputs": {
+        "out": "IPV4 EVPN Type 5 routing for virtual networks"
+      },
+      "properties": {
+        "route_target": "'%s:1' % security_zone.vni_id",
+        "graph_query": "{{ evpn_type5('ipv4').split('\n')|join }}",
+        "data_type": "dss",
+        "subnet": "virtual_network.ipv4_subnet",
+        "service_name": "evpn_type5",
+        "l3_vni": "security_zone.vni_id",
+        "label": "virtual_network.label",
+        "remote_hostname": "remote_system.hostname",
+        "rd": "'%s:%s' % (remote_loopback.ipv4_addr.split('/')[0], security_zone.vlan_id)",
+        "system_id": "system.system_id",
+        "vrf": "security_zone.vrf_name",
+        "key": "'%s:%s|%s|%s' % (remote_loopback.ipv4_addr.split('/')[0], security_zone.vlan_id, 'ipv4', virtual_network.ipv4_subnet)",
+        "enable_streaming": false,
+        "value_map": {
+          "1": "up"
+        },
+        "remote_vlan": "remote_vn_instance.vlan_id"
+      }
+    },
+    {
+      "inputs": {
+        "in": "IPV4 EVPN Type 5 routing for virtual networks"
+      },
+      "type": "state_check",
+      "name": "EVPN IPv4 Type 5 status for virtual networks",
+      "outputs": {
+        "out": "EVPN IPv4 Type 5 status for virtual networks"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "state": "{{ function.state_check_format_state('up', aos_version) }}",
+        "raise_anomaly": true
+      }
+    },
+    {% if function.node_type_has_property('virtual_network', 'ipv6_subnet') %}
+        {
+          "inputs": {},
+          "type": "generic_data_collector",
+          "name": "IPV6 EVPN Type 5 routing for virtual networks",
+          "outputs": {
+            "out": "IPV6 EVPN Type 5 routing for virtual networks"
+          },
+          "properties": {
+            "route_target": "'%s:1' % security_zone.vni_id",
+            "graph_query": "{{ evpn_type5('ipv6').split('\n')|join }}",
+            "data_type": "dss",
+            "subnet": "virtual_network.ipv6_subnet",
+            "service_name": "evpn_type5",
+            "l3_vni": "security_zone.vni_id",
+            "label": "virtual_network.label",
+            "remote_hostname": "remote_system.hostname",
+            "rd": "'%s:%s' % (remote_loopback.ipv4_addr.split('/')[0], security_zone.vlan_id)",
+            "system_id": "system.system_id",
+            "vrf": "security_zone.vrf_name",
+            "key": "'%s:%s|%s|%s' % (remote_loopback.ipv4_addr.split('/')[0], security_zone.vlan_id, 'ipv6', virtual_network.ipv6_subnet)",
+            "enable_streaming": false,
+            "value_map": {
+              "1": "up"
+            },
+            "remote_vlan": "remote_vn_instance.vlan_id"
+          }
+        },
+        {
+          "inputs": {
+            "in": "IPV6 EVPN Type 5 routing for virtual networks"
+          },
+          "type": "state_check",
+          "name": "EVPN IPv6 Type 5 status for virtual networks",
+          "outputs": {
+            "out": "EVPN IPv6 Type 5 status for virtual networks"
+          },
+          "properties": {
+            "enable_streaming": false,
+            "state": "{{ function.state_check_format_state('up', aos_version) }}",
+            "raise_anomaly": true
+          }
+        },
+    {% endif %}
+    {
+      "inputs": {
+        "in": "EVPN Type 3 for L2 VNIs"
+      },
+      "type": "match_count",
+      "name": "Expected remote VTEP count",
+      "outputs": {
+        "out": "Expected remote VTEP count"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "group_by": [
+          "system_id",
+          "vni_id",
+          "label"
+        ],
+        "reference_state": "up"
+      }
+    },
+    {
+      "inputs": {
+        "in": "EVPN Type 3 for L2 VNIs"
+      },
+      "type": "state_check",
+      "name": "Remote L2VNI VTEP status",
+      "outputs": {
+        "out": "Remote L2VNI VTEP status"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "state": "{{ function.state_check_format_state('up', aos_version) }}",
+        "raise_anomaly": true
+      }
+    },
+    {
+      "inputs": {
+        "in": "Expected remote VTEP count"
+      },
+      "type": "range_check",
+      "name": "Per-VNI VTEP Limit",
+      "outputs": {
+        "out": "Per-VNI VTEP Limit"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "property": "value",
+        "range": {
+          "max": 32
+        },
+        "raise_anomaly": true
+      }
+    }
+  ],
+  "stages": [
+    {
+      "name": "Remote L2VNI VTEP status",
+      "description": "The remote L2 VNI status is 'up' if EVPN collection command on the device discovers it in a 'show bgp evpn' command.  If the RD:VTEP prefix is missing from the EVPN BGP Type 3 received routes, it is 'missing' and considered to be down."
+    },
+    {
+      "name": "EVPN IPv4 Type 5 status for virtual networks",
+      "description": "The remote L3 VNI status is 'up' if EVPN collection command on the device discovers it in a 'show bgp evpn' command.  If the RD:Subnet prefix is missing from the EVPN BGP Type 5 received routes, it is 'missing' and considered to be down."
+    },
+    {
+      "name": "IPV4 EVPN Type 5 routing for virtual networks",
+      "description": "EVPN Type 5 for L3 VNI routes represents the list of VTEPS that a leaf will use to route across L3 VNIs for remote IP subnets.  An expectation is only added if both system and remote-system participate in the same security zone, and do not instantiate the same vlan.\n\nAn association is made between remote VTEP IP and a deterministic route distinguisher.  Modelling this allows predictable correlation for VNI, VLAN, virtual network name, etc."
+    },
+    {% if function.node_type_has_property('virtual_network', 'ipv6_subnet') %}
+        {
+          "name": "EVPN IPv6 Type 5 status for virtual networks",
+          "description": "The remote L3 VNI status is 'up' if EVPN collection command on the device discovers it in a 'show bgp evpn' command.  If the RD:Subnet prefix is missing from the EVPN BGP Type 5 received routes, it is 'missing' and considered to be down."
+        },
+        {
+          "name": "IPV6 EVPN Type 5 routing for virtual networks",
+          "description": "EVPN Type 5 for L3 VNI routes represents the list of VTEPS that a leaf will use to route across L3 VNIs for remote IP subnets.  An expectation is only added if both system and remote-system participate in the same security zone, and do not instantiate the same vlan.\n\nAn association is made between remote VTEP IP and a deterministic route distinguisher.  Modelling this allows predictable correlation for VNI, VLAN, virtual network name, etc."
+        },
+    {% endif %}
+    {
+      "name": "Per-VNI VTEP Limit",
+      "description": "Hardware manufacturers have hard limits on number of remote VTEPs that are tracked by a particular switch model.  This processor will aggregate and count an expected range of VTEPs associated to a given VNI.  For example, hardware may begin to fail to forward if there are over 32 VTEPs associated with a specific L2 VNI.  This constraint is also present for undesired broadcast-unknown-multicast (BUM) traffic flooding.  This processor aggregates a total count of VTEP<->VNI associations for a given leaf.  This is only possible by deterministic RD/VTEP configuration rendering."
+    },
+    {
+      "name": "EVPN Type 3 for L2 VNIs",
+      "description": "EVPN Type 3 for L2 VNI routes represents the list of VTEPS that a leaf will flood traffic to. Ensuring correlation between remote VNIs ensures consistency of traffic flooded within a VNI (L2 VLAN).  A missing remote VTEP and RD indicates that reachability between system and remote-system is impaired somehow.\n\nAn association is made between remote VTEP IP and a deterministic route distinguisher.  Modelling this allows predictable correlation for VNI, VLAN, virtual network name, etc."
+    },
+    {
+      "name": "Expected remote VTEP count",
+      "description": "Groups graph query for VTEPs and VNIs together by system and VNI"
+    }
+  ]
+}

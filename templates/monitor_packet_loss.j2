@@ -1,5 +1,4 @@
 {% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
-{% set prefix = (target_ip | default('')) or '8.8.8.8' %}
 {
   "processors": [{
     "name": "Packet loss percent from servers",
@@ -8,8 +7,9 @@
       "data_type": "ns",
       "service_name": "ping",
       "graph_query": "match(node('system', name='system', role=is_in(['l2_server', 'l3_server']), system_id=not_none()))",
-      "key": "'{{prefix}}_packet_loss_percent'",
-      "system_id": "system.system_id"
+      "key": "'packet_loss_percent'",
+      "system_id": "system.system_id",
+      "target": "system.tags"
     },
     "outputs": {
       "out": "packet_loss_percent"
@@ -81,11 +81,11 @@
       "in": "has_packet_loss"
     },
     "properties": {
-      "time_window": 120,
+      "time_window": 960,
       "state_range": {
         "true": [
           {
-            "max": 20
+            "max": 240
           }
         ]
       }
