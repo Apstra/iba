@@ -3,8 +3,8 @@
    "node('system', name='system', system_id=not_none(), deploy_mode='deploy')"
    ".out('port_map').node('port_map').out('hcl_entry')"
    ".node('hcl_entry', name='device_type_node')"
-   ".where(lambda device_type_node:"
-   "'%s'.lower() in device_type_node.json['os'].lower())" % os_family %}
+   ".where(lambda device_type_node:'%s'.lower() in device_type_node.json.lower())"
+    % ('\\\"os\\\": \\\"' + os_family + '\\\",') %}
 {% set query_2_2 =
    "node('system', name='system', system_id=not_none(), deploy_mode='deploy')"
    ".out('interface_map').node('interface_map').out('device_profile')"
@@ -30,6 +30,7 @@
         "out": "os_version"
       }
     },
+{% if function.version_compare(aos_version, '<', '2.4')%}
     {
       "name": "Check expected OS version",
       "type": "match_count",
@@ -54,15 +55,15 @@
           "max": 1,
           "min": 1
         }
-{% if supports_raise_anomaly %}
+    {% if supports_raise_anomaly %}
         , "raise_anomaly": true
-{% endif %}
+    {% endif %}
       },
       "outputs": {
         "out": "os_version_mismatch"
       }
     }
-{% if not supports_raise_anomaly %}
+    {% if not supports_raise_anomaly %}
     ,
     {
       "name": "OS version mismatch anomaly",
@@ -75,6 +76,23 @@
       },
       "outputs": {
         "out": "os_version_mismatch_anomaly"
+      }
+    }
+    {% endif %}
+{% else %}
+    {
+      "name": "Match expected OS version",
+      "type": "match_string",
+      "inputs": {
+        "in": "os_version"
+      },
+      "outputs": {
+        "out": "Match expected OS version"
+      },
+      "properties": {
+        "enable_streaming": true,
+        "regexp": "{{expected_os_version}}",
+        "raise_anomaly": true
       }
     }
 {% endif %}

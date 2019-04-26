@@ -1,0 +1,68 @@
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set graph_query = 
+   "node('system', name='system', system_id=not_none(),"
+   "deploy_mode='deploy',"
+   "role=is_in(['leaf', 'spine']))"
+%}
+{
+  "processors": [
+    {
+      "name": "collect_acl_counter",
+      "type": "generic_data_collector",
+      "properties": {
+        "graph_query": "{{graph_query}}",
+        "data_type": "ns",
+        "service_name": "acl_stats",
+        "system_id": "system.system_id",
+        "key": "'{{ acl_name }}|last_rule'"
+      },
+      "outputs": {
+        "out": "acl_packet_hit_count"
+      }
+    },
+    {
+      "name": "acl_packet_has_matches",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "acl_packet_hit_count"
+      },
+      "properties": {
+        "range": {
+          "max": 0
+        }
+{% if supports_raise_anomaly %}
+        , "raise_anomaly": true
+{% endif %}
+      },
+      "outputs": {
+        "out": "acl_packet_has_matches"
+      }
+    },
+{% if not supports_raise_anomaly %}
+    {
+      "type": "anomaly",
+      "name": "packet_count_exceeds_threshold",
+      "inputs": {
+        "in": "acl_packet_has_matches"
+      },
+      "outputs": {
+        "out": "packet_count_exceeds_threshold"
+      }
+    },
+{% endif %}
+    {
+      "name": "anomaly_history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"acl_packet_has_matches" if supports_raise_anomaly else "packet_count_exceeds_threshold"}}"
+      },
+      "outputs": {
+        "out": "anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+  ],
+  "label": "ACL hits anomaly"
+}

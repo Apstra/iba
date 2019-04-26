@@ -84,7 +84,7 @@
         "counter_type": "{{ prefix }}_bytes",
 {% endif %}
         "interface": "interface.if_name",
-        "role": "'mlag_peer' if link.role in ['leaf_peer_link', 'spine_spine'] else ('leaf_server' if 'server' in link.role else link.role)",
+        "group": "'mlag_peer' if link.role in ['leaf_peer_link', 'spine_spine'] else ('leaf_server' if 'server' in link.role else link.role)",
         "description": "interface.description or 'facing %s' % (system2.hostname or system2.label or system2.role)"
       },
       "outputs": {
@@ -104,21 +104,21 @@
         "in": "{{label}}_traffic"
       },
       "properties": {
-        "group_by": ["role"]
+        "group_by": ["group"]
       },
       "outputs": {
-        "out": "{{label}}_traffic_by_role"
+        "out": "{{label}}_traffic_by_group"
       },
       "stages": [
         {
-          "name": "{{ "%s_traffic_by_role"|format(label) if new_style_stage_def else "out" }}",
+          "name": "{{ "%s_traffic_by_group"|format(label) if new_style_stage_def else "out" }}",
           "units": "{{ "bps" if bps_suffix else "Bps" }}"
         }
       ]
     },
 {{render_summarization(label, '%s_traffic' % label)}}
     ,
-{{render_summarization('Grouped %s' % label, '%s_traffic_by_role' % label)}}
+{{render_summarization('Grouped %s' % label, '%s_traffic_by_group' % label)}}
 {% endmacro %}
 
 {

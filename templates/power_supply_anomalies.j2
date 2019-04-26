@@ -1,0 +1,142 @@
+{# 
+  This probe detects faults in power supply status, power supply fan status and power supply temperature status.
+  The faults are reported as an aggregate and not per PSU.
+  Two distinct anomalies - one for missing data and one for an observed fault are raised.
+#}
+{% set graph_query = "node('system', name='device', system_id=not_none(), deploy_mode='deploy', role=is_in(['leaf', 'spine']))" %}
+
+{% macro ps_anomaly_processors(component) %}
+    {
+      "name": "{{ component }}_processor",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        {# Not using dss as we cannot raise anomaly for a given state. See RFE-546. #}
+        "graph_query": "{{ graph_query }}",
+        "service_name": "power_supply",
+        "system_id": "device.system_id",
+        "key": "'{{ component }}'",
+        "value_map": {
+          "0": "missing",
+          "1": "ok",
+          "2": "fault detected"
+        }
+      },
+      "outputs": {
+        "out": "{{ component }}"
+      }
+    },
+    {
+      "name": "{{ component }}_check_missing",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "{{ component }}"
+      },
+      "properties": {
+        "range": {
+            "min": 1,
+            "max": 2
+        },
+        "raise_anomaly": true
+      },
+      "outputs": {
+        "out": "{{ component }}_check_missing"
+      }
+    },
+    {
+      "name": "{{ component }}_check",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "{{ component }}"
+      },
+      "properties": {
+        "range": {
+            "min": 0,
+            "max": 1
+        },
+        "raise_anomaly": true
+      },
+      "outputs": {
+        "out": "{{ component }}_fault"
+      }
+    },
+    {
+      "name": "{{ component }} Fault Anomaly History",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{("%s_fault") % component}}"
+      },
+      "outputs": {
+        "out": "{{ component }}_fault_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+{% endmacro %}
+
+{
+  "processors": [
+    {{ ps_anomaly_processors('power_supply_status') }},
+    {{ ps_anomaly_processors('power_supply_fan_status') }},
+    {{ ps_anomaly_processors('power_supply_temperature_status') }},
+    {
+      "name": "power_supply_count_processor",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "power_supply",
+        "system_id": "device.system_id",
+        "key": "'power_supply_count'"
+      },
+      "outputs": {
+        "out": "power_supply_count"
+      }
+    },
+    {
+      "name": "power_supply_count",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "power_supply_count"
+      },
+      "properties": {
+        "range": {
+          "min": 2
+        },
+        "raise_anomaly": true
+      },
+      "outputs": {
+        "out": "insufficient_power_supplies"
+      }
+    },
+    {
+      "name": "power_supply_count Anomaly History",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{"insufficient_power_supplies"}}"
+      },
+      "outputs": {
+        "out": "power_supply_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    },
+    {
+      "name": "power_supply_info",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ts",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "power_supply",
+        "system_id": "device.system_id",
+        "key": "'power_supply_info'"
+      },
+      "outputs": {
+        "out": "power_supply_info"
+      }
+    }
+  ],
+  "label": "Power Supply Anomalies"
+}

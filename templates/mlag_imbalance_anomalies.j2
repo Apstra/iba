@@ -1,14 +1,24 @@
 {# Detect imbalance between all members of any MLAG and raise anomalies if standard deviation is
-   more than max_std_dev_in_bytes_per_sec #}
+   more than percent_threshold of link_speed, you will need to provide all mlag link speed
+   separated by comma, percent_threhold could be float number. e.g. if you want to set percentage
+   threshold as 60%, simply put 60 as value of percent_threshold. See an example below: #}
+{# --link_speed 25G,100G --percent_threshold 0.01#}
+
+{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set bps_suffix = function.bps_counter_suffix(aos_version) %}
+{% set new_style_stage_def = function.new_style_stage_def(aos_version) %}
+{% set sustained = function.is_true(sustained) %}
+
+{% macro render(link_speed) %}
 {% set query_2_1_1 =
   "match(node('interface', name='mlag_intf', mlag_id=not_none()).out('composed_of')"
   ".node('interface').out('composed_of')"
   ".node('interface', name='intf').in_('hosted_interfaces')"
   ".node('system', name='system', system_id=not_none(), deploy_mode='deploy'),"
   "node('redundancy_group', name='rg').out('hosted_interfaces').node(name='mlag_intf'),"
-  "node(name='intf').out('link').node('link', name='link').in_('link').node('interface', name='peer_intf')"
+  "node(name='intf').out('link').node('link', name='link', speed='%s').in_('link').node('interface', name='peer_intf')"
   ".in_('hosted_interfaces').node('system', name='peer_system')"
-  ".ensure_different('intf', 'peer_intf'))"
+  ".ensure_different('intf', 'peer_intf'))" % link_speed
 %}
 {% set query_2_2 =
   "match(node('interface', name='mlag_intf', mlag_id=not_none()).out('composed_of')"
@@ -16,21 +26,17 @@
   ".node('interface', name='intf').in_('hosted_interfaces')"
   ".node('system', name='system', system_id=not_none(), deploy_mode='deploy'),"
   "node('redundancy_group', name='rg').out('hosted_interfaces').node(name='mlag_intf'),"
-  "node(name='intf').out('link').node('link', name='link').in_('link').node('interface', name='peer_intf')"
+  "node(name='intf').out('link').node('link', name='link', speed='%s').in_('link').node('interface', name='peer_intf')"
   ".in_('hosted_interfaces').node('system', name='peer_system')"
   ".ensure_different('intf', 'peer_intf'),"
-  "optional(node(name='peer_system').out('part_of_redundancy_group').node('redundancy_group', name='peer_rg')))"
+  "optional("
+  "  node(name='mlag_intf').out('link')."
+  "  node('link').in_('link')."
+  "  node('interface', name='peer_of_mlag_intf').in_('hosted_interfaces')"
+  "  .node(name='peer_node').ensure_different('mlag_intf', 'peer_of_mlag_intf')))" % link_speed
 %}
-{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
-{% set bps_suffix = function.bps_counter_suffix(aos_version) %}
-{% set new_style_stage_def = function.new_style_stage_def(aos_version) %}
-{% set sustained = function.is_true(sustained) %}
-
-{
-  "label": "{{'Sustained ' if sustained else ''}}MLAG imbalance anomalies",
-  "processors": [
     {
-      "name": "MLAG member interface traffic",
+      "name": "MLAG {{link_speed}} member interface traffic",
       "type": "if_counter",
       "properties": {
         "graph_query": "{{ query_2_1_1 if function.version_compare(aos_version, '<', '2.2') else query_2_2 }}",
@@ -44,23 +50,23 @@
         "interface": "intf.if_name",
         "mlag_id": "mlag_intf.mlag_id",
 {% if function.version_compare(aos_version, '>=', '2.2') %}
-        "mlag_desc": "'facing %s' % (peer_rg.label if peer_rg else 'server')",
+        "mlag_desc": "'facing %s' % (peer_node.label if peer_node else 'server')",
 {% endif %}
         "rack": "rg.label",
         "role": "link.role"
       },
       "outputs": {
-        "out": "intf_ingress_traffic"
+        "out": "{{link_speed}}_intf_ingress_traffic"
       },
       "stages": [
         {
-          "name": "{{ "intf_ingress_traffic" if new_style_stage_def else "out" }}",
+          "name": "{{ "%s_intf_ingress_traffic" % link_speed if new_style_stage_def else "out" }}",
           "units": "{{ "bps" if bps_suffix else "Bps" }}"
         }
       ]
     },
     {
-      "name": "Imbalance between members",
+      "name": "Imbalance between {{link_speed}} members",
       "type": "std_dev",
       "properties": {
 {% if function.version_compare(aos_version, '<', '2.2') %}
@@ -70,30 +76,30 @@
 {% endif %}
       },
       "inputs": {
-        "in": "intf_ingress_traffic"
+        "in": "{{link_speed}}_intf_ingress_traffic"
       },
       "outputs": {
-        "out": "mlag_std_dev"
+        "out": "{{link_speed}}_mlag_std_dev"
       },
       "stages": [
         {
-          "name": "{{ "mlag_std_dev" if new_style_stage_def else "out" }}",
+          "name": "{{ "%s_mlag_std_dev" % link_speed if new_style_stage_def else "out" }}",
           "units": "{{ "bps" if bps_suffix else "Bps" }}"
         }
       ]
     },
     {
-      "name": "Imbalance exceeds threshold?",
+      "name": "Imbalance between {{link_speed}} members exceeds threshold?",
       "type": "{{ function.get_proc_name('in_range', aos_version) }}",
       "inputs": {
-        "in": "mlag_std_dev"
+        "in": "{{link_speed}}_mlag_std_dev"
       },
       "properties": {
         "range": {
 {% if bps_suffix %}
-          "max": {{ max_std_dev_in_bits_per_sec }}
+          "max": {{((function.get_link_speed(link_speed)|int) * (percent_threshold|float)) / 100}}
 {% else %}
-          "max": {{ (max_std_dev_in_bits_per_sec | int) / 8 }}
+          "max": {{ ((function.get_link_speed(link_speed)|int) * (percent_threshold|float)) / 8 / 100 }}
 {% endif %}
         }
 {% if supports_raise_anomaly and not sustained %}
@@ -101,15 +107,15 @@
 {% endif %}
       },
       "outputs": {
-        "out": "mlag_std_dev_exceeds_threshold"
+        "out": "{{link_speed}}_mlag_std_dev_exceeds_threshold"
       }
     },
 {% if sustained %}
     {
-      "name": "Sustained imbalance exceeds threshold",
+      "name": "Sustained imbalance between {{link_speed}} members exceeds threshold",
       "type": "{{ function.get_proc_name('time_in_state', aos_version) }}",
       "inputs": {
-        "in": "mlag_std_dev_exceeds_threshold"
+        "in": "{{link_speed}}_mlag_std_dev_exceeds_threshold"
       },
       "properties": {
         "time_window": 120,
@@ -125,25 +131,45 @@
 {% endif %}
       },
       "outputs": {
-        "out": "sustained_mlag_std_dev_exceeds_threshold"
+        "out": "sustained_{{link_speed}}_mlag_std_dev_exceeds_threshold"
       }
-    }
+    },
 {% endif %}
 {% if not supports_raise_anomaly %}
-    ,
     {
       "type": "anomaly",
-      "name": "MLAG imbalance anomaly",
+      "name": "MLAG imbalance anomaly between {{link_speed}} members",
       "inputs": {
-        "in": "{{'sustained_' if sustained else ''}}mlag_std_dev_exceeds_threshold"
+        "in": "{{'sustained_' if sustained else ''}}{{link_speed}}_mlag_std_dev_exceeds_threshold"
       },
       "properties": {
         "enable_streaming": true
       },
       "outputs": {
-        "out": "{{'sustained_' if sustained else ''}}mlag_imbalance_anomaly"
+        "out": "{{'sustained_' if sustained else ''}}{{link_speed}}_mlag_imbalance_anomaly"
+      }
+    },
+{% endif %}
+    {
+      "name": "Anomaly history MLAG imbalance between {{link_speed}} members",
+      "type": "accumulate",
+      "inputs": {
+        "in": "{{'sustained_' if sustained else ''}}{{link_speed}}_mlag_{{'std_dev_exceeds_threshold' if supports_raise_anomaly else 'imbalance_anomaly'}}"
+      },
+      "outputs": {
+        "out": "{{'sustained_' if sustained else ''}}{{link_speed}}_mlag_imbalance_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
       }
     }
-{% endif %}
-  ]
+{% endmacro %}
+{
+  "processors": [
+    {% for speed in link_speed.split(',') %}
+      {{ render(speed) }}
+      {%- if not loop.last %},{% endif %}
+    {% endfor %}
+  ],
+  "label": "{{'Sustained ' if sustained else ''}}MLAG imbalance anomalies"
 }

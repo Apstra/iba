@@ -110,6 +110,7 @@ They also serve as examples to help build custom probes yourself.
 | Probe | Description
 | ---------- | -----------
 | memory_usage_threshold_anomalies | Detect memory leaks in specified process on all switches in the Fabric |
+| power_supply_anomalies | Detect faults in power supply status, power supply fan status and power supply temperature status |
 | system_memory_usage_threshold_anomalies | Detect switches having potential memory leaks in the Fabric |
 
 
@@ -130,51 +131,18 @@ They also serve as examples to help build custom probes yourself.
 | vxlan_status | Detect devices with VXLAN interface that is not up |
 | static_vxlan_vtep_anomalies | Verify VXLAN intent by ensuring all L2 segments have expected VTEP flood list |
 
+## Security
+
+| Probe | Description
+| ---------- | -----------
+| acl_stat_anomalies | Report on acl rule matches that exceed user defined thresholds |
 
 # Getting Started
+All the probes listed above are available as part of AOS server predefined probe list or aos-cli predefined probe list. For the former, use AOS web UI to instantiate a predefined probe - you can find more details in AOS documentation. For the latter, see the probe templates section below.
 
-You can find the setup instructions and try these out in your environment [here](docs/README.md).
+## Probe Templates
 
-To access each tutorial directly, click on the links below:
-
-#### [East West Traffic](docs/east_west_traffic.ipynb)
-    Generates Probe to Calculate Total East/West Traffic     
-#### [ECMP Imbalance](docs/ecmp_imbalance.ipynb)
-    Generates Probe to Calculate ECMP Imbalance on fabric ports   
-#### [External ECMP Imbalance](docs/external_ecmp_imbalance.ipynb) 
-    Generates Probe to Calculate ECMP Imbalance on external facing fabric ports 
-#### [Headroom](docs/headroom.ipynb)  
-    Generates Probe to Calculate Headroom
-#### [Hot Cold Interface](docs/hot_cold_interface.ipynb)  
-    Generates Probe to Determine Hot/Cold Fabric Interface Counters
-#### [Interface Flapping](docs/interface_flapping.ipynb)  
-    Generates Probe to Determine if Interfaces are Flapping
-#### [MLAG Imbalance](docs/mlag_imbalance.ipynb)   
-    Generates Probe to Calculate MLAG Imbalance
-#### [Specific Hot Cold Interface](docs/specific_hot_cold_interface.ipynb) 
-    Generates Probe to Determine Hot/Cold for Specific Interface Counters
-#### [Specific Interface Flapping](docs/specific_interface_flapping.ipynb)  
-    Generates Probe to Determine if Interfaces are Flapping
-
-## Using AOS Web UI to create the probes
-
-Follow the steps below to create the probes under aospy folder using AOS Web UI
-
-1. In a terminal window, go to the directory where you cloned this repository
-2. Type `python` to enter the python interactive shell
-3. Within the python shell, do the following
-
-```
-  >>> from aospy.ibaprobelib.mlag_imbalance import mlag_imbalance_probe
-  >>> import json; print json.dumps(mlag_imbalance_probe('mlag imbalance', 120, 10000))
-```
-
-4. Go to AOS Web UI > Blueprints > Blueprint > Analytics > Create Probe > Import Probe
-5. Paste the JSON output and create the probe
-
-# Probe Templates
-
-You can find many more probes in the `templates` subfolder.
+You can find working probes in the `templates` subfolder.
 
 The files in this folder are IBA probe json payloads that are represented as
 [JINJA templates](http://jinja.pocoo.org/docs/2.10/templates/). You need to use

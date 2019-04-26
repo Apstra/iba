@@ -1,4 +1,17 @@
 {% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+{% set supports_qe_optional = function.supports_qe_optional(aos_version) %}
+{% set sz_query =
+  "node(name='intf')"
+  ".in_('member_interfaces').node('sz_instance')"
+  ".in_('instantiated_by').node('security_zone', name='sz')" %}
+{% set query =
+  "match(node('system', name='leaf', role='leaf', system_id=not_none(), deploy_mode='deploy')"
+  ".out('hosted_interfaces').node('interface', name='intf')"
+  ".out('link').node('link')"
+  ".in_('link').node('interface', name='other_intf')"
+  ".in_('hosted_interfaces').node('system', name='peer', role=ne('leaf'), deploy_mode='deploy')," +
+  ("optional(%s))" % sz_query if supports_qe_optional else "%s)" % sz_query)
+%}
 {
   "processors": [
     {
@@ -6,10 +19,10 @@
       "type": "generic_data_collector",
       "properties": {
         "data_type": "dss",
-        "graph_query": "match(node('system', name='leaf', role='leaf', system_id=not_none(), deploy_mode='deploy').out('hosted_interfaces').node('interface', name='intf', ipv4_addr=not_none()).out('link').node('link').in_('link').node('interface', name='other_intf', ipv4_addr=not_none()).in_('hosted_interfaces').node('system', name='peer', role=ne('leaf'), deploy_mode='deploy'),node(name='intf').in_('member_interfaces').node('sz_instance').in_('instantiated_by').node('security_zone', name='sz'))",
+        "graph_query": "{{query}}",
         "service_name": "bgp_iba",
         "system_id": "leaf.system_id",
-        "key": "'%s_%s' % (sz.vrf_name, other_intf.ipv4_addr.split('/')[0])",
+        "key": "'%s_%s' % (sz.vrf_name if sz else 'default', other_intf.ipv4_addr.split('/')[0] if other_intf.ipv4_addr else intf.if_name)",
         "interface": "intf.if_name",
         "peer_hostname": "peer.hostname",
         "value_map": {

@@ -13,7 +13,7 @@
         "graph_query": "match(node('system', name='leaf', role='leaf', deploy_mode='deploy').out('hosted_sz_instances').node('sz_instance').in_('instantiated_by').node('security_zone', name='sz').having(node(name='leaf').out('hosted_interfaces').node('interface').out('link').node('link', role='to_external_router'), at_most=0))",
         "service_name": "route_count",
         "system_id": "leaf.system_id",
-        "key": "'%s_0.0.0.0/0' % sz.vrf_name"
+        "key": "'%s|0.0.0.0/0' % sz.vrf_name"
       },
       "outputs": {
         "out": "non_border_leaf_default_gw_count"
