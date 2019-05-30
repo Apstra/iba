@@ -81,6 +81,8 @@ They also serve as examples to help build custom probes yourself.
 | ---------- | -----------
 | virtual_infra_vlan_match | Detect inconsistencies between physical underlay and virtual networking |
 | missing_vlan_vms | Detect Virtual Machines that have connectivity issues due to configuration inconsistencies between physical underlay and virtual networking |
+| virtual_infra_lag_match | Detect inconsistencies between physical underlay and hypervisor LAG configuration|
+| virtual_infra_missing_lldp_config | Detect virtual infra hosts that are not configured for LLDP|
 
 
 ## Capacity Planning
