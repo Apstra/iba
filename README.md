@@ -34,6 +34,7 @@ They also serve as examples to help build custom probes yourself.
 | mlag_domain_config_sanity_anomalies | Detect MLAG (a.k.a MCLAG or VPC) domains with inconsistent configuration between member devices |
 | stp_state | Detect STP blocked interfaces in all VLANs |
 | stp_state_change | Detect any southbound interface STP state change seen in the last specified number of days |
+| mlag_domain_state_anomalies | Detects MLAG domain state anomalies |
 
 
 ## Layer3
@@ -57,6 +58,9 @@ They also serve as examples to help build custom probes yourself.
 | interface_queue_drops_anomalies | Detect interfaces with overflowing buffers resulting in dropped packets |
 | monitor_packet_loss | Detect high packet loss observed from pinging specified destination(s) |
 | server_rtt | Detect high roundtrip time observed from pinging specified destination(s) |
+| fabric_bgp_anomalies | Detects BGP anomalies in the fabric |
+| interface_status_anomalies | Detects physical interface status |
+| leaf_bgp_vrf_anomalies | Detects leaf vrf-aware BGP session anomalies |
 
 
 ## Traffic patterns
@@ -105,6 +109,7 @@ They also serve as examples to help build custom probes yourself.
 | pim_neighbor_anomalies | Verify Multicast intent by ensuring all SVI interfaces, leaf-spine and leaf-leaf links in every VRF have an expected PIM neighbor |
 | pim_rp_anomalies | Verify every VRF in every switch in Fabric has expected rendezvous point IP configured
 | vrfs_missing_rp | Ensure any device acting as RP on any VRF is an RP for all other multicast enabled VRFs on that device |
+| multicast_group_info | Detects Multicast Group Info from RPs |
 
 
 ## Device health
@@ -138,6 +143,13 @@ They also serve as examples to help build custom probes yourself.
 | Probe | Description
 | ---------- | -----------
 | acl_stat_anomalies | Report on acl rule matches that exceed user defined thresholds |
+
+## EVPN
+
+| Probe | Description
+| ---------- | -----------
+| evpn | Monitors EVPN Telemetry including expected remote VTEP count |
+| evpn_type3 | Monitors EVPN remote VTEPs Type 3 telemetry |
 
 # Getting Started
 All the probes listed above are available as part of AOS server predefined probe list or aos-cli predefined probe list. For the former, use AOS web UI to instantiate a predefined probe - you can find more details in AOS documentation. For the latter, see the probe templates section below.
