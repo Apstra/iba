@@ -109,7 +109,6 @@ They also serve as examples to help build custom probes yourself.
 | pim_neighbor_anomalies | Verify Multicast intent by ensuring all SVI interfaces, leaf-spine and leaf-leaf links in every VRF have an expected PIM neighbor |
 | pim_rp_anomalies | Verify every VRF in every switch in Fabric has expected rendezvous point IP configured
 | vrfs_missing_rp | Ensure any device acting as RP on any VRF is an RP for all other multicast enabled VRFs on that device |
-| multicast_group_info | Detects Multicast Group Info from RPs |
 
 
 ## Device health
@@ -148,8 +147,12 @@ They also serve as examples to help build custom probes yourself.
 
 | Probe | Description
 | ---------- | -----------
-| evpn | Monitors EVPN Telemetry including expected remote VTEP count |
-| evpn_type3 | Monitors EVPN remote VTEPs Type 3 telemetry |
+| evpn (VTEP floodlist) | Validate Type 3 routes for L2 VNIs|
+| evpn (VXLAN Routing) | Validate VXLAN subnet (type 5) presence in BGP RIB |
+| evpn (Floodlist limit) | Detect excessive per-VNI count of VTEPs in floodlist |
+| evpn (VRF limit) | Detect excessive count of VRFs |
+| MAC state | Validate one or more MACs are learned on expected devices with expected state |
+
 
 # Getting Started
 All the probes listed above are available as part of AOS server predefined probe list or aos-cli predefined probe list. For the former, use AOS web UI to instantiate a predefined probe - you can find more details in AOS documentation. For the latter, see the probe templates section below.
