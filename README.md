@@ -151,7 +151,7 @@ They also serve as examples to help build custom probes yourself.
 | evpn (VXLAN Routing) | Validate VXLAN subnet (type 5) presence in BGP RIB |
 | evpn (Floodlist limit) | Detect excessive per-VNI count of VTEPs in floodlist |
 | evpn (VRF limit) | Detect excessive count of VRFs |
-| MAC state | Validate one or more MACs are learned on expected devices with expected state |
+| evpn (MAC state) | Validate one or more MACs are learned on expected devices with expected state |
 
 
 # Getting Started
