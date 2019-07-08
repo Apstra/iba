@@ -1,17 +1,30 @@
-{% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
-{% set supports_qe_optional = function.supports_qe_optional(aos_version) %}
-{% set sz_query =
-  "node(name='intf')"
-  ".in_('member_interfaces').node('sz_instance')"
-  ".in_('instantiated_by').node('security_zone', name='sz')" %}
-{% set query =
-  "match(node('system', name='leaf', role='leaf', system_id=not_none(), deploy_mode='deploy')"
-  ".out('hosted_interfaces').node('interface', name='intf')"
-  ".out('link').node('link')"
-  ".in_('link').node('interface', name='other_intf')"
-  ".in_('hosted_interfaces').node('system', name='peer', role=ne('leaf'), deploy_mode='deploy')," +
-  ("optional(%s))" % sz_query if supports_qe_optional else "%s)" % sz_query)
+{# Probe to monitor leaf-spine link-based BGP peering sessions within the fabric across all VRFs on all leafs #}
+
+{# TODO: Enhance to support svi based BGP peering between members of MLAG domains #}
+{% set default_sz_query =
+  "match("
+    "node('system', name='leaf', role='leaf', system_id=not_none(), deploy_mode='deploy').out('hosted_interfaces')"
+    ".node('interface', name='intf', if_type='ip').out('link')"
+    ".node('link').in_('link')"
+    ".node('interface', name='other_intf').in_('hosted_interfaces')"
+    ".node('system', name='peer', deploy_mode='deploy').ensure_different('leaf', 'peer'),"
+    "optional("
+      "node(name='intf').in_('member_interfaces')"
+      ".node('sz_instance').in_('instantiated_by')"
+      ".node('security_zone', name='sz'))"
+    ")"
 %}
+
+{% set non_default_sz_query =
+  "match("
+    "node('system', name='leaf', role='leaf', system_id=not_none(), deploy_mode='deploy').out('hosted_interfaces')"
+    ".node('interface').out('composed_of').node('interface', name='intf', if_type='subinterface').out('link')"
+    ".node('link').in_('link')"
+    ".node('interface', name='other_intf').in_('composed_of').node('interface').in_('hosted_interfaces')"
+    ".node('system', name='peer', deploy_mode='deploy').ensure_different('leaf', 'peer'),"
+    "node(name='intf').in_('member_interfaces').node('sz_instance').in_('instantiated_by').node('security_zone', name='sz'))"
+%}
+
 {
   "processors": [
     {
@@ -19,7 +32,7 @@
       "type": "generic_data_collector",
       "properties": {
         "data_type": "dss",
-        "graph_query": "{{query}}",
+        "graph_query": ["{{default_sz_query}}", "{{non_default_sz_query}}"],
         "service_name": "bgp_iba",
         "system_id": "leaf.system_id",
         "key": "'%s_%s' % (sz.vrf_name if sz else 'default', other_intf.ipv4_addr.split('/')[0] if other_intf.ipv4_addr else intf.if_name)",
@@ -42,31 +55,13 @@
         "in": "bgp_session_state"
       },
       "properties": {
-        "state": "up"
-{% if supports_raise_anomaly %}
-        , "raise_anomaly": true
-{% endif %}
+        "state": "{{ function.state_check_format_state('up', aos_version) }}",
+        "raise_anomaly": true
       },
       "outputs": {
         "out": "bgp_session_down"
       }
     }
-{% if not supports_raise_anomaly %}
-    ,
-    {
-      "type": "anomaly",
-      "name": "BGP session down anomaly",
-      "inputs": {
-        "in": "bgp_session_down"
-      },
-      "properties": {
-        "enable_streaming": true
-      },
-      "outputs": {
-        "out": "bgp_session_down_anomaly"
-      }
-    }
-{% endif %}
   ],
   "label": "Leaf vrf-aware BGP session anomalies"
 }

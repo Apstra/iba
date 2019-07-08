@@ -54,7 +54,7 @@
         "in": "feature_enabled"
       },
       "properties": {
-        "state": "enabled"
+        "state": "{{ function.state_check_format_state('enabled', aos_version) }}"
 {% if supports_raise_anomaly %}
         , "raise_anomaly": true
 {% endif %}

@@ -42,6 +42,7 @@ They also serve as examples to help build custom probes yourself.
 | ---------- | -----------
 | border_leaf_default_gateway_anomalies | Verify routing intent on border leafs by ensuring default gateway nexthop count is as expected in all VRFs|
 | non_border_leaf_default_gateway_anomalies | Verify routing intent on non-border leafs by ensuring default gateway nexthop count is as expected in all VRFs |
+| border_device_default_gateway_anomalies | Verify default routing intent on border devices (leaf or spine) ensuring the default gateway nexthop count is as expected for user specified VRFs |
 
 
 ## Data plane
@@ -132,6 +133,7 @@ They also serve as examples to help build custom probes yourself.
 | hardware_vtep_counters_enabled | Detect devices where hardware telemetry to capture VXLAN counters is not enabled |
 | vxlan_status | Detect devices with VXLAN interface that is not up |
 | static_vxlan_vtep_anomalies | Verify VXLAN intent by ensuring all L2 segments have expected VTEP flood list |
+| vxlan_address_table_anomalies | Verify that the move count of any MAC address is not greater than 1 |
 
 ## Security
 

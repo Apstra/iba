@@ -1,12 +1,34 @@
 {% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
+
+{% set graph_query =
+  "match("
+    "node('system', role='leaf', deploy_mode='deploy', name='leaf')"
+    ".out('hosted_interfaces')"
+    ".node('interface', name='interface')"
+    ".out('link')"
+    ".node('link', role='leaf_l2_server')"
+    ".in_('link')"
+    ".node('interface')"
+    ".out('hosted_vn_endpoints')"
+    ".node('vn_endpoint')"
+    ".out('member_of')"
+    ".node('virtual_network', name='vn')"
+    ".out('instantiated_by')"
+    ".node('vn_instance', name='vn_instance')"
+    ".in_('hosted_vn_instances')"
+    ".node(name='leaf')"
+  ").distinct(['leaf','interface','vn'])"
+%}
+
 {
   "processors": [
     {
       "name": "STP interface state",
       "type": "generic_data_collector",
       "properties": {
-        "data_type": "dss",
-        "graph_query": "match(node('system', role='leaf', deploy_mode='deploy', name='leaf').out('hosted_interfaces').node('interface', if_type='port_channel', name='interface').out('composed_of').node('interface').out('link').node('link', role='leaf_l2_server').in_('link').node('interface').in_('hosted_interfaces').node('system', role='l2_server').out('hosted_vn_endpoints').node('vn_endpoint').out('member_of').node('virtual_network', name='vn').out('instantiated_by').node('vn_instance', name='vn_instance')).distinct(['leaf','interface','vn'])",
+        "data_type": "ns",
+        {# Not using dss as we cannot raise anomaly for a given state. See RFE-546. #}
+        "graph_query": "{{ graph_query }}",
         "service_name": "stp",
         "system_id": "leaf.system_id",
         "key": "'%s|%s|stp_state' % (interface.if_name, vn_instance.vlan_id)",
@@ -25,16 +47,33 @@
       }
     },
     {
-      "name": "Interfaces not in forwarding state",
-      "type": "{{ function.get_proc_name('in_state', aos_version) }}",
+      "name": "Interfaces missing STP state",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
       "inputs": {
         "in": "stp_state"
       },
       "properties": {
-        "state": "forwarding"
-{% if supports_raise_anomaly %}
-      , "raise_anomaly": true
-{% endif %}
+        "range": {
+          "min": 1,
+          "max": 4
+        }
+      },
+      "outputs": { 
+        "out": "stp_state_missing" 
+      }
+    },
+    {
+      "name": "Interfaces not in forwarding state",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "stp_state"
+      },
+      "properties": {
+        "range": {
+          "min": 0,
+          "max": 1
+        },
+        "raise_anomaly": true
       },
       "outputs": {
         "out": "stp_state_not_forwarding"

@@ -1,0 +1,94 @@
+{# 
+  Description: VxLAN MAC Table anomalies probe
+  This probe will raise an anomaly if the move count of any macAddress is greater than 1.
+  The probe will also list the table size for each vxlan along with the move details for
+  any mac with a move count greater than 1.
+#}
+
+{% set graph_query = 
+  "match(node('system', name='leaf', role='leaf', deploy_mode='deploy')"
+  ".out('hosted_vn_instances')"
+  ".node('vn_instance', name='vni')"
+  ".out('instantiates')"
+  ".node('virtual_network', name='vn', vn_type='vxlan'))"
+%}
+   
+{
+  "processors": [
+    {
+      "name": "VxLAN MAC Table Size",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "vxlan_address_table",
+        "vni": "vn.vn_id",
+        "system_id": "leaf.system_id",
+        "key": "'vlan=%s|table_size' % (vni.vlan_id)"
+      },
+      "outputs": {
+        "out": "vxlan_mac_table_size"
+      }
+    },
+    {
+      "name": "VxLAN MACs with multiple moves",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ts",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "vxlan_address_table",
+        "vni": "vn.vn_id",
+        "system_id": "leaf.system_id",
+        "key": "'vlan=%s|macs_with_multiple_moves' % (vni.vlan_id)"
+      },
+      "outputs": {
+        "out": "vxlan_macs_with_multiple_moves"
+      }
+    },
+    {
+      "name": "Count of macs with multiple moves",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": "{{ graph_query }}",
+        "service_name": "vxlan_address_table",
+        "vni": "vn.vn_id",
+        "system_id": "leaf.system_id",
+        "key": "'vlan=%s|count_of_macs_with_multiple_moves' % (vni.vlan_id)"
+      },
+      "outputs": {
+        "out": "vxlan_count_of_macs_with_multiple_moves"
+      }
+    },
+    {
+      "name": "MAC multi-move anomalies",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "vxlan_count_of_macs_with_multiple_moves"
+      },
+      "properties": {
+        "range": {
+          "max": 0
+        },
+        "raise_anomaly": true
+      },
+      "outputs": {
+        "out": "vxlan_move_anomalies"
+      }
+    },
+    {
+      "name": "VxLAN MAC move anomaly history",
+      "type": "accumulate",
+      "inputs": {
+        "in": "vxlan_move_anomalies"
+      },
+      "outputs": {
+        "out": "vxlan_address_table_anomaly_history"
+      },
+      "properties": {
+        "max_samples": 50
+      }
+    }
+  ],
+  "label": "VxLAN MAC Table Info and Move Anomalies"
+}
