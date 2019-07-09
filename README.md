@@ -151,8 +151,6 @@ They also serve as examples to help build custom probes yourself.
 | evpn (VXLAN Routing) | Validate VXLAN subnet (type 5) presence in BGP RIB |
 | evpn (Floodlist limit) | Detect excessive per-VNI count of VTEPs in floodlist |
 | evpn (VRF limit) | Detect excessive count of VRFs |
-| evpn (MAC state) | Validate one or more MACs are learned on expected devices with expected state |
-
 
 # Getting Started
 All the probes listed above are available as part of AOS server predefined probe list or aos-cli predefined probe list. For the former, use AOS web UI to instantiate a predefined probe - you can find more details in AOS documentation. For the latter, see the probe templates section below.
