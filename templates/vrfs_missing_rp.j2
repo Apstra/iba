@@ -34,7 +34,7 @@
         "in": "vrf_rp_presence"
       },
       "properties": {
-        "state": "is_rp"
+        "state": "{{ function.state_check_format_state('is_rp', aos_version) }}"
 {% if supports_raise_anomaly %}
         , "raise_anomaly": true
 {% endif %}

@@ -32,7 +32,7 @@
         "in": "anycast_peers"
       },
       "properties": {
-        "state": "present"
+        "state": "{{ function.state_check_format_state('present', aos_version) }}"
 {% if supports_raise_anomaly %}
         , "raise_anomaly": true
 {% endif %}

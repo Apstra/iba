@@ -1,0 +1,112 @@
+{# The --vrf_list paramater requires a list of vrfs, e.g., --vrf_list USER-VRF,default
+   The --expected_gateway_count should be set to the number of expected default routes
+
+   Note: We make following assumptions
+   1. All border devices have same number of links exiting the fabric
+   2. Each border device uses all exits in all exit-enabled VRFs
+   3. All exits in a given border device, for a given VRF, use either all sub-interfaces
+      or all interfaces but not both (types of interfaces)
+   3. Border device and router use link-based BGP peering (not loopback)
+
+   Following are the graph modeling invariants this probe relies on
+   1. Default VRF is considered exit-disabled if no physical interface or sub-interface
+      facing router has ebgp in the protocols field
+   2. Non-default VRF is exit-disabled if there is no sub-interface facing router and
+      related to sz_instance node
+
+   
+#}
+
+{% set vrfs = vrf_list.split(',') %}
+
+{% set default_sz_intf_query =
+  "match("
+  "  node('system', name='border_device', role=is_in(['leaf', 'spine']), deploy_mode='deploy').out('hosted_sz_instances')"
+  "  .node('sz_instance').in_('instantiated_by')"
+  "  .node('security_zone', name='sz', sz_type='l3_fabric')"
+  "  .having("
+  "    node('system', name='border_device').out('hosted_interfaces')"
+  "    .node('interface', protocols='ebgp').out('link')"
+  "    .node('link', role='to_external_router'), at_least=1))"
+%}
+
+{% set default_sz_sub_intf_query =
+  "match("
+  "  node('system', name='border_device', role=is_in(['leaf', 'spine']), deploy_mode='deploy').out('hosted_sz_instances')"
+  "  .node('sz_instance').in_('instantiated_by')"
+  "  .node('security_zone', name='sz', sz_type='l3_fabric')"
+  "  .having("
+  "    node('system', name='border_device').out('hosted_interfaces')"
+  "    .node('interface', protocols='ebgp').out('link')"
+  "    .node('link', role='to_external_router'), at_most=0)"
+  "  .having("
+  "    node('system', name='border_device').out('hosted_interfaces')"
+  "    .node('interface').out('composed_of')"
+  "    .node('interface', if_type='subinterface').out('link')"
+  "    .node('link', role='to_external_router'), at_least=1))"
+%}
+
+{% set non_default_sz_query =
+  "match("
+  "  node('system', name='border_device', role=is_in(['leaf', 'spine']), deploy_mode='deploy').out('hosted_sz_instances')"
+  "  .node('sz_instance', name='szi').in_('instantiated_by')"
+  "  .node('security_zone', name='sz', sz_type=ne('l3_fabric'), vrf_name=is_in(%s))"
+  "  .having("
+  "    node('system', name='border_device').out('hosted_interfaces')"
+  "    .node('interface').out('composed_of')"
+  "    .node('interface', if_type='subinterface').out('link')"
+  "    .node('link', role='to_external_router'), at_least=1)"
+  "  .having("
+  "    node('system', name='border_device').out('hosted_interfaces')"
+  "    .node('interface').out('composed_of')"
+  "    .node('interface', if_type='subinterface').in_('member_interfaces')"
+  "    .node(name='szi'), at_least=1))" % vrfs
+%}
+
+{
+  "processors": [
+    {
+      "name": "Collect default gateway count on border leafs",
+      "type": "generic_data_collector",
+      "properties": {
+        "data_type": "ns",
+        "graph_query": [
+          {% if 'default' in vrfs %}
+            "{{default_sz_intf_query}}",
+            "{{default_sz_sub_intf_query}}"
+          {% endif %}
+          {% if vrfs|length > 1 or vrfs[0] != 'default'%}
+            {% if 'default' in vrfs %}
+              ,
+            {% endif %}
+            "{{non_default_sz_query}}"
+          {% endif %}
+        ],
+        "service_name": "route_count",
+        "system_id": "border_device.system_id",
+        "key": "'%s|0.0.0.0/0' % sz.vrf_name"
+      },
+      "outputs": {
+        "out": "border_device_default_gw_count"
+      }
+    },
+    {
+      "name": "Check if default gateway count is as expected",
+      "type": "{{ function.get_proc_name('in_range', aos_version) }}",
+      "inputs": {
+        "in": "border_device_default_gw_count"
+      },
+      "properties": {
+        "range": {
+          "min": {{expected_gateway_count}},
+          "max": {{expected_gateway_count}}
+        },
+        "raise_anomaly": true
+      },
+      "outputs": {
+        "out": "mismatched_border_devices"
+      }
+    }
+  ],
+  "label": "Border device default gateway count anomalies"
+}

@@ -28,7 +28,7 @@
         "in": "bgp_session_state"
       },
       "properties": {
-        "state": "up"
+        "state": "{{ function.state_check_format_state('up', aos_version) }}"
 {% if supports_raise_anomaly %}
         , "raise_anomaly": true
 {% endif %}

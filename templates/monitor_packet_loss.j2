@@ -83,7 +83,7 @@
     "properties": {
       "time_window": 960,
       "state_range": {
-        "true": [
+        "{{ function.state_check_format_state('true', aos_version) }}": [
           {
             "max": 240
           }

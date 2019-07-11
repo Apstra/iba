@@ -2,7 +2,25 @@
 
 {% set supports_raise_anomaly = function.supports_raise_anomaly(aos_version) %}
 
-{% set graph_query = "match(node('system', role='leaf', deploy_mode='deploy', name='leaf').out('hosted_interfaces').node('interface', if_type='port_channel', name='interface').out('composed_of').node('interface').out('link').node('link', role='leaf_l2_server').in_('link').node('interface').in_('hosted_interfaces').node('system', role='l2_server').out('hosted_vn_endpoints').node('vn_endpoint').out('member_of').node('virtual_network', name='vn').out('instantiated_by').node('vn_instance', name='vn_instance')).distinct(['leaf','interface','vn'])" %}
+{% set graph_query =
+  "match("
+    "node('system', role='leaf', deploy_mode='deploy', name='leaf')"
+    ".out('hosted_interfaces')"
+    ".node('interface', name='interface')"
+    ".out('link')"
+    ".node('link', role='leaf_l2_server')"
+    ".in_('link')"
+    ".node('interface')"
+    ".out('hosted_vn_endpoints')"
+    ".node('vn_endpoint')"
+    ".out('member_of')"
+    ".node('virtual_network', name='vn')"
+    ".out('instantiated_by')"
+    ".node('vn_instance', name='vn_instance')"
+    ".in_('hosted_vn_instances')"
+    ".node(name='leaf')"
+  ").distinct(['leaf','interface','vn'])"
+%}
 
 {% set last_state_change_threshold_in_days = (obervation_period|default("3"))|int %}
 
