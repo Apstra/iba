@@ -1,0 +1,15 @@
+name: All interfaces on all leafs
+description: >
+  Finds all interfaces on all leafs with assigned device, irrespective of leaf being
+  active and deployed in the blueprint
+query: >
+  match(
+    node('system', name='leaf', role='leaf', system_id=not_none()).out('hosted_interfaces')
+    .node('interface', name='leaf_intf')
+  )
+variants:
+  - >
+      Add deploy_mode check to leaf to get only leafs that are actively in service
+  - >
+      Add if_type check to leaf_intf to filter only physical or loopback or
+      subinterface or vtep or port-channel etc

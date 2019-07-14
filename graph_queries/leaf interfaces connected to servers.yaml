@@ -1,0 +1,16 @@
+name: All leaf interfaces connected to servers
+description: >
+  Finds all leaf interfaces connected to servers, irrespective of leaf or server
+  being active and deployed in the blueprint
+query: >
+  match(
+    node('system', name='leaf', role='leaf', system_id=not_none()).out('hosted_interfaces')
+    .node('interface', name='leaf_intf').out('link')
+    .node('link').in_('link')
+    .node('interface', name='server_intf').in_('hosted_interfaces')
+    .node('system', name='server', role=is_in(['l2_server', 'l3_server']))
+  )
+variants:
+  - >
+      Add deploy_mode check to leaf or server to get only leafs that are actively in
+      service
