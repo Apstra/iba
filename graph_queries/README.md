@@ -8,7 +8,9 @@ creating probes.
 
 Refer to AOS documentation on [graph queries](
 https://files.apstra.com/docs/database_concepts.html#query-specification) for more
-information about the query syntax.
+information about the query syntax. These queries are sometimes categorically
+referred to as "qe" queries, in contrast to [GraphQL](https://graphql.org/) queries,
+that are also supported by AOS, but not used in the probes
 
 Each example is presented in a YAML file, simply for better organization and
 readability. These YAML documents are __not__ consumed by AOS or any other software

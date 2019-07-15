@@ -171,5 +171,6 @@ aos-cli to load these probes on to AOS server. The command to use in aos-cli is
 ## Probe graph queries
 
 Authoring new probes requires familiarity with graph queries to select the elements
-of interest whose telemetry is ingested into the probes. Refer to
-[graph queries](graph_queries/README.md) for more details.
+of interest whose [telemetry](https://files.apstra.com/docs/telemetry.html) is
+ingested into the probes. Refer to [graph queries](graph_queries/README.md) for more
+details.
