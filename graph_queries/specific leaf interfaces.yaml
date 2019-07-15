@@ -1,0 +1,15 @@
+name: All interfaces on a specific leaf
+description: >
+  Finds all interfaces on a specific leaf matching a specific hostname, irrespective
+  of that leaf being active and deployed in the blueprint
+query: >
+  match(
+    node('system', name='leaf', role='leaf', hostname='rack_001_leaf1').out('hosted_interfaces')
+    .node('interface', name='leaf_intf')
+  )
+variants:
+  - >
+      Add deploy_mode check to leaf to get only leafs that are actively in service
+  - >
+      Find specific leaf based on other criteria like label or device serial number
+      etc

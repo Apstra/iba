@@ -155,6 +155,7 @@ They also serve as examples to help build custom probes yourself.
 | evpn (VRF limit) | Detect excessive count of VRFs |
 
 # Getting Started
+
 All the probes listed above are available as part of AOS server predefined probe list or aos-cli predefined probe list. For the former, use AOS web UI to instantiate a predefined probe - you can find more details in AOS documentation. For the latter, see the probe templates section below.
 
 ## Probe Templates
@@ -165,3 +166,11 @@ The files in this folder are IBA probe json payloads that are represented as
 [JINJA templates](http://jinja.pocoo.org/docs/2.10/templates/). You need to use
 aos-cli to load these probes on to AOS server. The command to use in aos-cli is
 `probe create --blueprint <id> --file </path/to/template/file> [<additional_args>]`
+
+
+## Probe graph queries
+
+Authoring new probes requires familiarity with graph queries to select the elements
+of interest whose [telemetry](https://files.apstra.com/docs/telemetry.html) is
+ingested into the probes. Refer to [graph queries](graph_queries/README.md) for more
+details.
