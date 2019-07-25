@@ -30,6 +30,7 @@ any of these to be an accurate match for your specific requirements.
 
 Apstra Operating System GUI has 'GraphQL API Explorer' accessible from the blueprint
 details view. You can execute the queries in this directory in the explorer
-and examine the results. You can also tweak the query and see the results
-interactively. Use the explorer as an aid to arrive at the final queries that work
-for your specific requirements.
+and examine the results. Be sure to change the Action dropdown from the default value
+of ql to qe. You can also tweak the query and see the results interactively. Use the
+explorer as an aid to arrive at the final queries that work for your specific
+requirements.

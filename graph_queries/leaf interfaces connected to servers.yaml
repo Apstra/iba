@@ -14,3 +14,5 @@ variants:
   - >
       Add deploy_mode check to leaf or server to get only leafs that are actively in
       service
+  - >
+      Add speed check to link node to get only links of a certain speed

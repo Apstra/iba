@@ -1,0 +1,15 @@
+name: All interfaces on all spines
+description: >
+  Finds all interfaces on all spines with assigned device, irrespective of spine being
+  active and deployed in the blueprint
+query: >
+  match(
+    node('system', name='spine', role='spine', system_id=not_none()).out('hosted_interfaces')
+    .node('interface', name='spine_intf')
+  )
+variants:
+  - >
+      Add deploy_mode check to spine to get only spines that are actively in service
+  - >
+      Add if_type check to spine_intf to filter only physical or loopback or
+      subinterface or vtep or port-channel etc
