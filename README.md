@@ -62,6 +62,7 @@ They also serve as examples to help build custom probes yourself.
 | fabric_bgp_anomalies | Detects BGP anomalies in the fabric |
 | interface_status_anomalies | Detects physical interface status |
 | leaf_bgp_vrf_anomalies | Detects leaf vrf-aware BGP session anomalies |
+| blackhole_detection | Detects a potential blackhole situation by calculating the difference between the total RX and TX traffic on each spine |
 
 
 ## Traffic patterns

@@ -97,9 +97,9 @@
       "properties": {
         "range": {
 {% if bps_suffix %}
-          "max": {{((function.get_link_speed(link_speed)|int) * (percent_threshold|float)) / 100}}
+          "max": {{ ((function.get_link_speed(link_speed) * (percent_threshold|float)) / 100)|int }}
 {% else %}
-          "max": {{ ((function.get_link_speed(link_speed)|int) * (percent_threshold|float)) / 8 / 100 }}
+          "max": {{ ((function.get_link_speed(link_speed) * (percent_threshold|float)) / 8 / 100)|int }}
 {% endif %}
         }
 {% if supports_raise_anomaly and not sustained %}

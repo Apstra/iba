@@ -1,0 +1,278 @@
+{#
+  This probe detects a potential blackhole situation by calculating the difference
+  between the total RX and TX traffic in each node. This probe assumes intended packet
+  drops (ex. ACLs) are not expected on the monitored nodes.
+#}
+
+{% set graph_query = 
+  "match(node('system', name='system', system_id=not_none(), deploy_mode='deploy', role=is_in(['spine']))"
+  ".out('hosted_interfaces')"
+  ".node('interface', if_type=is_in(['ip','ethernet']), name='interface'))"
+%}
+
+{
+  
+  "processors": [
+    {
+      "type": "if_counter",
+      "name": "Per Interface RX bps - Real Time",
+      "outputs": {
+        "out": "Per Interface RX bps - Real Time"
+      },
+      "properties": {
+        "interface": "interface.if_name",
+        "enable_streaming": false,
+        "system_id": "system.system_id",
+        "graph_query": "{{ graph_query }}",
+        "counter_type": "rx_bits"
+      }
+    },
+    {
+      "type": "if_counter",
+      "name": "Per Interface TX bps - Real Time",
+      "outputs": {
+        "out": "Per Interface TX bps - Real Time"
+      },
+      "properties": {
+        "interface": "interface.if_name",
+        "enable_streaming": false,
+        "system_id": "system.system_id",
+        "graph_query": "{{ graph_query }}",
+        "counter_type": "tx_bits"
+      }
+    },
+    {
+      "inputs": {
+        "in": "Per Interface RX bps - Real Time"
+      },
+      "type": "sum",
+      "name": "Per Switch Total RX bps - Real Time -v1 ",
+      "outputs": {
+        "out": "Per Switch Total RX bps - Real Time -v1 "
+      },
+      "properties": {
+        "enable_streaming": false,
+        "group_by": [
+          "system_id"
+        ]
+      }
+    },
+    {
+      "inputs": {
+        "in": "Per Interface RX bps - Real Time"
+      },
+      "type": "sum",
+      "name": "Per Switch Total RX bps - Real Time -v2 ",
+      "outputs": {
+        "out": "Per Switch Total RX bps - Real Time -v2"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "group_by": [
+          "system_id"
+        ]
+      }
+    },
+    {
+      "inputs": {
+        "in": "Per Interface TX bps - Real Time"
+      },
+      "type": "sum",
+      "name": "Per Switch Total TX bps - Real Time-v1",
+      "outputs": {
+        "out": "Per Switch Total TX bps - Real Time-v1"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "group_by": [
+          "system_id"
+        ]
+      }
+    },
+    {
+      "inputs": {
+        "in": "Per Interface TX bps - Real Time"
+      },
+      "type": "sum",
+      "name": "Per Switch Total TX bps - Real Time-v2",
+      "outputs": {
+        "out": "Per Switch Total TX bps - Real Time-v2"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "group_by": [
+          "system_id"
+        ]
+      }
+    },
+    {
+      "inputs": {
+        "minuend": "Per Switch Total TX bps - Real Time-v1",
+        "subtrahend": "Per Switch Total RX bps - Real Time -v1 "
+      },
+      "type": "subtract",
+      "name": "TX RX Difference - Real Time",
+      "outputs": {
+        "out": "TX RX Difference - Real Time"
+      },
+      "properties": {
+        "enable_streaming": false
+      }
+    },
+    {
+      "inputs": {
+        "in": "Per Switch Total RX bps - Real Time -v1 "
+      },
+      "type": "accumulate",
+      "name": "Total RX bps - 1 Hour History",
+      "outputs": {
+        "out": "Total RX bps - 1 Hour History"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "max_samples": 1024,
+        "total_duration": 3600
+      }
+    },
+    {
+      "inputs": {
+        "in": "Per Switch Total RX bps - Real Time -v2"
+      },
+      "type": "accumulate",
+      "name": "Total RX bps - 1 Minute History",
+      "outputs": {
+        "out": "Total RX bps - 1 Minute History"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "max_samples": 1024,
+        "total_duration": 60
+      }
+    },
+    {
+      "inputs": {
+        "in": "Per Switch Total TX bps - Real Time-v1"
+      },
+      "type": "accumulate",
+      "name": "Total TX bps - 1 Hour History",
+      "outputs": {
+        "out": "Total TX bps - 1 Hour History"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "max_samples": 1024,
+        "total_duration": 3600
+      }
+    },
+    {
+      "inputs": {
+        "in": "Per Switch Total TX bps - Real Time-v2"
+      },
+      "type": "accumulate",
+      "name": "Total TX bps - 1 Minute History",
+      "outputs": {
+        "out": "Total TX bps - 1 Minute History"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "max_samples": 1024,
+        "total_duration": 60
+      }
+    },
+    {
+      "inputs": {
+        "in": "TX RX Difference - Real Time"
+      },
+      "type": "range_check",
+      "name": "TX RX 1Mbps Deviation - Real Time",
+      "outputs": {
+        "out": "TX RX 1Mbps Deviation - Real Time"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "property": "value",
+        "range": {
+          "max": 1000000,
+          "min": -1000000
+        },
+        "raise_anomaly": false
+      }
+    },
+    {
+      "inputs": {
+        "in": "TX RX 1Mbps Deviation - Real Time"
+      },
+      "type": "time_in_state_check",
+      "name": "TX RX 1Mbps Deviation - 1 Minute Sustained",
+      "outputs": {
+        "out": "TX RX 1Mbps Deviation - 1 Minute Sustained"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "time_window": 65,
+        "state_range": {
+        {% if function.version_compare(aos_version, '<', '3.0.0') %}
+          "true": [
+        {% else %}
+          {% if function.version_compare(aos_version, '<', '3.1.0') %}
+          "\"true\"": [
+          {% else %}
+          "\"false\"": [
+          {% endif %}
+        {% endif %}
+            {
+              "max": 60
+            }
+          ]
+        },
+        "raise_anomaly": true
+      }
+    },
+    {
+      "inputs": {
+        "in": "TX RX 1Mbps Deviation - Real Time"
+      },
+      "type": "time_in_state_check",
+      "name": "TX RX 1Mbps Deviation - 5 Minutes Sustained",
+      "outputs": {
+        "out": "TX RX 1Mbps Deviation - 5 Minutes Sustained"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "time_window": 305,
+        "state_range": {
+        {% if function.version_compare(aos_version, '<', '3.0.0') %}
+          "true": [
+        {% else %}
+          {% if function.version_compare(aos_version, '<', '3.1.0') %}
+          "\"true\"": [
+          {% else %}
+          "\"false\"": [
+          {% endif %}
+        {% endif %}
+            {
+              "max": 300
+            }
+          ]
+        },
+        "raise_anomaly": true
+      }
+    },
+    {
+      "inputs": {
+        "in": "TX RX 1Mbps Deviation - Real Time"
+      },
+      "type": "accumulate",
+      "name": "TX RX 1Mbps Deviation History",
+      "outputs": {
+        "out": "TX RX 1Mbps Deviation History"
+      },
+      "properties": {
+        "enable_streaming": false,
+        "max_samples": 1024,
+        "total_duration": 0
+      }
+    }
+  ],
+  "label": "Spine TX-RX Discrepancy (Blackhole Detection)"
+}
