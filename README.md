@@ -88,7 +88,9 @@ They also serve as examples to help build custom probes yourself.
 | missing_vlan_vms | Detect Virtual Machines that have connectivity issues due to configuration inconsistencies between physical underlay and virtual networking |
 | virtual_infra_lag_match | Detect inconsistencies between physical underlay and hypervisor LAG configuration|
 | virtual_infra_missing_lldp_config | Detect virtual infra hosts that are not configured for LLDP|
-
+| virtual_infra_hypervisor_redundancy_checks | Detect single point of failures between hypervisor and physical underlay connectivity|
+| hypervisor_mtu_checks | Detect hypervisor interfaces with MTU below threshold|
+| hypervisor_mtu_mismatch | Detect MTU value deviation across hypervisor pnics|
 
 ## Capacity Planning
 
