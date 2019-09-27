@@ -58,7 +58,11 @@
       },
       "properties": {
         "range": {
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "min": 1
+        {% else %}
           "max": 0
+        {% endif %}
         }
       }
     },
@@ -76,7 +80,11 @@
         "state_range": {
           "{{ function.state_check_format_state('true', aos_version) }}": [
             {
+            {% if function.version_compare(aos_version, '>=', '3.1') %}
+              "min": 35001
+            {% else %}
               "max": 35000
+            {% endif %}
             }
           ]
         }

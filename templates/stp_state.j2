@@ -54,8 +54,8 @@
       },
       "properties": {
         "range": {
-          "min": 1,
-          "max": 4
+          "min": 0,
+          "max": 0
         }
       },
       "outputs": { 
@@ -73,32 +73,38 @@
           "min": 0,
           "max": 1
         },
-        "raise_anomaly": true
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "raise_anomaly": false
+        {% else %}
+          "raise_anomaly": true
+        {% endif %}
       },
       "outputs": {
         "out": "stp_state_not_forwarding"
       }
     },
-{% if not supports_raise_anomaly %}
+    {% if function.version_compare(aos_version, '>=', '3.1') %}
     {
-      "name": "STP interface state anomaly",
-      "type": "anomaly",
-      "inputs": {
-        "in": "stp_state_not_forwarding"
-      },
+      "inputs": {"in": "stp_state_not_forwarding"},
+      "type": "state_check",
+      "name": "check_stp_state_not_forwarding",
+      "outputs": {"out": "stp_state_anomaly"},
       "properties": {
-        "enable_streaming": true
-      },
-      "outputs": {
-        "out": "stp_state_anomaly"
+        "enable_streaming": false,
+        "state": "'false'",
+        "raise_anomaly": true
       }
     },
-{% endif %}
+    {% endif %}
     {
       "name": "Anomaly history of STP interface state",
       "type": "accumulate",
       "inputs": {
-        "in": "{{"stp_state_not_forwarding" if supports_raise_anomaly else "stp_state_anomaly"}}"
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "in": "stp_state_anomaly"
+        {% else %}
+          "in": "stp_state_not_forwarding"
+        {% endif %}
       },
       "properties": {
         "max_samples": 50

@@ -40,7 +40,11 @@ sustained_error True
       },
       "properties": {
         "range": {
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "min": 1
+        {% else %}
           "max": 0
+        {% endif %}
         }
 {% if sustained %}
       },
@@ -59,7 +63,11 @@ sustained_error True
         "state_range": {
           "{{ function.state_check_format_state('true', aos_version) }}": [
             {
+	    {% if function.version_compare(aos_version, '>=', '3.1') %}
+	      "min": 21
+	    {% else %}
               "max": 20
+	    {% endif %}
             }
           ]
         }

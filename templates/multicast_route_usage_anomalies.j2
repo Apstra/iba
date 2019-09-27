@@ -53,7 +53,11 @@
       },
       "properties": {
         "range": {
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "min": {{max_multicast_routes + 1}}
+        {% else %}
           "max": {{max_multicast_routes}}
+        {% endif %}
         }
 {% if supports_raise_anomaly %}
         , "raise_anomaly": true

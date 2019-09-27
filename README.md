@@ -127,6 +127,7 @@ They also serve as examples to help build custom probes yourself.
 
 | Probe | Description
 | ---------- | -----------
+| hostname_compliance | Ensures the FQDN of any system matches the user specified regex |
 | os_version_anomalies | Detect devices not running expected Operating System version |
 
 
@@ -155,6 +156,13 @@ They also serve as examples to help build custom probes yourself.
 | evpn (VXLAN Routing) | Validate VXLAN subnet (type 5) presence in BGP RIB |
 | evpn (Floodlist limit) | Detect excessive per-VNI count of VTEPs in floodlist |
 | evpn (VRF limit) | Detect excessive count of VRFs |
+
+## Fault Tolerance
+
+| Probe | Description
+| ---------- | -----------
+| lag_link_fault_tolerance | Determines if a failure of one link in a server LAG can be tolerated based on the current traffic load |
+| spine_fault_tolerance | Determines if the failure of a user specified number of spines can be tolerated based on the current traffic load across all spines |
 
 # Getting Started
 

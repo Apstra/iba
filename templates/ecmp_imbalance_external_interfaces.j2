@@ -71,7 +71,11 @@
 {% endif %}
         "property":"value",
         "range":{
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "min":{{ max_std_dev|int + 1 }}
+        {% else %}
           "max":{{ max_std_dev }}
+        {% endif %}
         }
       }
     },

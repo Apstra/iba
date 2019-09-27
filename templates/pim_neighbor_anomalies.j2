@@ -99,12 +99,29 @@
           "min": 1,
           "max": 1
         },
-        "raise_anomaly": true
+        {%  if function.version_compare(aos_version, '>=', '3.1') %}
+          "raise_anomaly": false
+        {% else %}
+          "raise_anomaly": true
+        {% endif %}
       },
       "outputs": {
         "out": "pim_neighbor_count_anomaly"
       }
     },
+    {%  if function.version_compare(aos_version, '>=', '3.1') %}
+    {
+      "inputs": {"in": "pim_neighbor_count_anomaly"},
+      "type": "state_check",
+      "name": "check_pim_neighbor_count_anomaly",
+      "outputs": {"out": "pim_neighbor_count_anomaly_state"},
+      "properties": {
+        "enable_streaming": false,
+        "state": "'false'",
+        "raise_anomaly": true
+      }
+    },
+    {% endif %}
     {
       "name": "single_leaf_pim_neighbor_count_anomaly",
       "type": "{{ function.get_proc_name('in_range', aos_version) }}",
@@ -113,8 +130,7 @@
       },
       "properties": {
         "range": {
-          "min": 0,
-          "max": 0
+          "min": 1
         },
         "raise_anomaly": true
       },
@@ -126,7 +142,7 @@
       "name": "pim_neighbor_anomaly History",
       "type": "accumulate",
       "inputs": {
-        "in": "pim_neighbor_count_anomaly"
+        "in": "{{ "pim_neighbor_count_anomaly_state" if function.version_compare(aos_version, '>=', '3.1') else "pim_neighbor_count_anomaly" }}"
       },
       "outputs": {
         "out": "pim_neighbor_anomaly_history"
