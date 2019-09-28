@@ -101,12 +101,30 @@
           "min": {{expected_gateway_count}},
           "max": {{expected_gateway_count}}
         },
+      {% if function.version_compare(aos_version, '>=', '3.1') %}
+        "raise_anomaly": false
+      {% else %}
         "raise_anomaly": true
+      {% endif %}
       },
       "outputs": {
         "out": "mismatched_border_devices"
       }
     }
+    {% if function.version_compare(aos_version, '>=', '3.1') %}
+    ,
+    {
+      "inputs": {"in": "mismatched_border_devices"},
+      "type": "state_check",
+      "name": "Check mismatched border devices",
+      "outputs": {"out": "check_mismatched_border_devices"},
+      "properties": {
+        "enable_streaming": false,
+        "state": "'false'",
+        "raise_anomaly": true
+      }
+    }
+    {% endif %}
   ],
   "label": "Border device default gateway count anomalies"
 }

@@ -1,0 +1,61 @@
+{% if function.version_compare(aos_version, '<', '3.1') %}
+
+** ERROR: This probe is not supported on AOS versions less than 3.1 **
+
+{% endif %}
+
+{# Raise anomaly if FQDN of any system does not match specified regex.
+#}
+
+
+{% set graph_query = "node('system', name='system', system_id=not_none(), deploy_mode='deploy')" %}
+
+{
+  "processors": [
+  {
+    "name": "FQDN collector",
+    "type": "service_data_collector",
+    "properties": {
+      "graph_query": "{{ graph_query }}",
+      "service_name": "hostname",
+      "key": "'fqdn'",
+      "system_id": "system.system_id"
+    },
+    "outputs": {
+      "out": "fqdn"
+    }
+  },
+  {
+    "name": "Match FQDN",
+    "type": "match_string",
+    "inputs": {
+      "in": "fqdn"
+    },
+    "properties": {
+      "enable_streaming": false,
+      "regexp": "'{{ fqdn_regexp }}'",
+      "raise_anomaly": false
+    },
+    "outputs": {
+      "out": "matched_fqdns"
+    }
+  },
+  {
+    "name": "Check FQDN mismatches",
+    "type": "state_check",
+    "inputs": {
+      "in": "matched_fqdns"
+    },
+    "outputs": {
+      "out": "fqdn_mismatch"
+    },
+    "properties": {
+      "enable_streaming": false,
+      "state": "'false'",
+      "raise_anomaly": true
+    }
+  }
+  ],
+  "description": "Raise anomaly if FQDN of any system does not match specified regex.",
+  "label": "Hostname compliance"
+}

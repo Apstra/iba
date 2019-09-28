@@ -53,9 +53,17 @@
       "properties": {
         "range": {
 {% if bps_suffix %}
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "min": {{(link_speed_in_bits_per_sec * (percent_threshold|int)) // 100 + 1}}
+        {% else %}
           "max": {{(link_speed_in_bits_per_sec * (percent_threshold|int)) // 100}}
+        {% endif %}
 {% else %}
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "min": {{((link_speed_in_bits_per_sec/8) * (percent_threshold|int)) // 100 + 1}}
+        {% else %}
           "max": {{((link_speed_in_bits_per_sec/8) * (percent_threshold|int)) // 100}}
+        {% endif %}
 {% endif %}
         }
 {% if supports_raise_anomaly and not sustained %}
@@ -78,7 +86,11 @@
         "state_range": {
           "{{ function.state_check_format_state('true', aos_version) }}": [
             {
+            {% if function.version_compare(aos_version, '>=', '3.1') %}
+              "min": 21
+            {% else %}
               "max": 20
+            {% endif %}
             }
           ]
         }

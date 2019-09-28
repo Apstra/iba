@@ -49,7 +49,11 @@
       },
       "properties": {
         "range": {
+          {% if function.version_compare(aos_version, '>=', '3.1') %}
+            "min": {{ threshold|float + 0.01 }}
+          {% else %}
             "max": {{ threshold|float }}
+          {% endif %}
           },
         "property": "std_dev"
 {% if supports_raise_anomaly %}

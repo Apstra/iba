@@ -148,7 +148,11 @@ match(
       "properties": {
         "enable_streaming": false,
         "state": "{{ function.state_check_format_state('up', aos_version) }}",
-        "raise_anomaly": true
+        {%  if function.version_compare(aos_version, '>=', '3.1') %}
+            "raise_anomaly": false
+        {% else %}
+            "raise_anomaly": true
+        {% endif %}
       }
     },
     {% if function.node_type_has_property('virtual_network', 'ipv6_subnet') %}
@@ -191,7 +195,11 @@ match(
           "properties": {
             "enable_streaming": false,
             "state": "{{ function.state_check_format_state('up', aos_version) }}",
-            "raise_anomaly": true
+            {%  if function.version_compare(aos_version, '>=', '3.1') %}
+                "raise_anomaly": false
+            {% else %}
+                "raise_anomaly": true
+            {% endif %}
           }
         },
     {% endif %}
@@ -226,7 +234,11 @@ match(
       "properties": {
         "enable_streaming": false,
         "state": "{{ function.state_check_format_state('up', aos_version) }}",
+    {%  if function.version_compare(aos_version, '>=', '3.1') %}
+        "raise_anomaly": false
+    {% else %}
         "raise_anomaly": true
+    {% endif %}
       }
     },
     {
@@ -242,11 +254,68 @@ match(
         "enable_streaming": false,
         "property": "value",
         "range": {
-          "max": 32
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+            "min": 33
+        {% else %}
+            "max": 32
+        {% endif %}
         },
         "raise_anomaly": true
       }
     }
+    {%  if function.version_compare(aos_version, '>=', '3.1') %}
+    ,
+        {
+          "inputs": {
+            "in": "EVPN IPv4 Type 5 status for virtual networks"
+          },
+          "type": "state_check",
+          "name": "Check EVPN IPv4 Type 5 status for virtual networks",
+          "outputs": {
+            "out": "Check EVPN IPv4 Type 5 status for virtual networks"
+          },
+          "properties": {
+            "enable_streaming": false,
+            "state": "'false'",
+            "raise_anomaly": true,
+            "graph_query": []
+          }
+        },
+        {% if function.node_type_has_property('virtual_network', 'ipv6_subnet') %}
+            {
+              "inputs": {
+                "in": "EVPN IPv6 Type 5 status for virtual networks"
+              },
+              "type": "state_check",
+              "name": "Check EVPN IPv6 Type 5 status for virtual networks",
+              "outputs": {
+                "out": "Check EVPN IPv6 Type 5 status for virtual networks"
+              },
+              "properties": {
+                "enable_streaming": false,
+                "state": "'false'",
+                "raise_anomaly": true,
+                "graph_query": []
+              }
+            },
+        {% endif %}
+        {
+          "inputs": {
+            "in": "Remote L2VNI VTEP status"
+          },
+          "type": "state_check",
+          "name": "Check Remote L2VNI VTEP status",
+          "outputs": {
+            "out": "Check Remote L2VNI VTEP status"
+          },
+          "properties": {
+            "enable_streaming": false,
+            "state": "'false'",
+            "raise_anomaly": true,
+            "graph_query": []
+          }
+        }
+    {% endif %}
   ],
   "stages": [
     {
@@ -270,6 +339,22 @@ match(
           "name": "IPV6 EVPN Type 5 routing for virtual networks",
           "description": "EVPN Type 5 for L3 VNI routes represents the list of VTEPS that a leaf will use to route across L3 VNIs for remote IP subnets.  An expectation is only added if both system and remote-system participate in the same security zone, and do not instantiate the same vlan.\n\nAn association is made between remote VTEP IP and a deterministic route distinguisher.  Modelling this allows predictable correlation for VNI, VLAN, virtual network name, etc."
         },
+    {% endif %}
+    {%  if function.version_compare(aos_version, '>=', '3.1') %}
+        {
+          "name": "Check Remote L2VNI VTEP status",
+          "description": "Raise anomaly based on Remote L2VNI VTEP status"
+        },
+        {
+          "name": "Check EVPN IPv4 Type 5 status for virtual networks",
+          "description": "Raise anomaly based on EVPN IPv4 Type 5 status for virtual networks"
+        },
+        {% if function.node_type_has_property('virtual_network', 'ipv6_subnet') %}
+            {
+                "name": "Check EVPN IPv6 Type 5 status for virtual networks",
+                "description": "Raise anomaly based on EVPN IPv6 Type 5 status for virtual networks"
+            },
+        {% endif %}
     {% endif %}
     {
       "name": "Per-VNI VTEP Limit",

@@ -39,31 +39,31 @@
         "range": {
           "min": {{default_gw_count}},
           "max": {{default_gw_count}}
-        }
-{% if supports_raise_anomaly %}
-        , "raise_anomaly": true
-{% endif %}
+        },
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "raise_anomaly": false
+        {% else %}
+          "raise_anomaly": true
+        {% endif %}
       },
       "outputs": {
         "out": "mismatched_non_border_leafs"
       }
     }
-{% if not supports_raise_anomaly %}
+    {% if function.version_compare(aos_version, '>=', '3.1') %}
     ,
     {
-      "name": "Mismatched non-border leaf anomaly",
-      "type": "anomaly",
-      "inputs": {
-        "in": "mismatched_non_border_leafs"
-      },
+      "inputs": {"in": "mismatched_non_border_leafs"},
+      "type": "state_check",
+      "name": "Check mismatched non-border leafs",
+      "outputs": {"out": "check_mismatched_non_border_leafs"},
       "properties": {
-        "enable_streaming": true
-      },
-      "outputs": {
-        "out": "mismatched_non_border_leafs_anomaly"
+        "enable_streaming": false,
+        "state": "'false'",
+        "raise_anomaly": true
       }
     }
-{% endif %}
+    {% endif %}
   ],
   "label": "Non-border leaf default gateway count anomalies"
 }

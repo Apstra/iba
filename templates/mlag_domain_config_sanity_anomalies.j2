@@ -30,31 +30,31 @@
         "range": {
           "max": 1,
           "min": 1
-        }
-{% if supports_raise_anomaly %}
-        , "raise_anomaly": true
-{% endif %}
+        },
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "raise_anomaly": false
+        {% else %}
+          "raise_anomaly": true
+        {% endif %}
       },
       "outputs": {
         "out": "mlag_domain_inconsistent"
       }
     }
-{% if not supports_raise_anomaly %}
+    {% if function.version_compare(aos_version, '>=', '3.1') %}
     ,
     {
-      "name": "MLAG domain inconsistent anomaly",
-      "type": "anomaly",
-      "inputs": {
-        "in": "mlag_domain_inconsistent"
-      },
+      "inputs": {"in": "mlag_domain_inconsistent"},
+      "type": "state_check",
+      "name": "Check inconsistent MLAG domains",
+      "outputs": {"out": "check_mlag_domain_inconsistent"},
       "properties": {
-        "enable_streaming": true
-      },
-      "outputs": {
-        "out": "mlag_domain_inconsistent_anomaly"
+        "enable_streaming": false,
+        "state": "'false'",
+        "raise_anomaly": true
       }
     }
-{% endif %}
+    {% endif %}
   ],
   "label": "MLAG domain config sanity anomalies"
 }

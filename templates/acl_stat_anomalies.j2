@@ -28,7 +28,11 @@
       },
       "properties": {
         "range": {
-          "max": 0
+        {%  if function.version_compare(aos_version, '>=', '3.1') %}
+          "min": 1
+        {% else %}
+           "max": 0
+        {% endif %}
         }
 {% if supports_raise_anomaly %}
         , "raise_anomaly": true

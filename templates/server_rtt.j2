@@ -37,7 +37,11 @@
     },
     "properties": {
       "range": {
+      {% if function.version_compare(aos_version, '>=', '3.1') %}
+        "min": 5001
+      {% else %}
         "max": 5000
+      {% endif %}
       }
 {% if supports_raise_anomaly %}
       , "raise_anomaly": true
@@ -96,7 +100,11 @@
     },
     "properties": {
       "range": {
+      {% if function.version_compare(aos_version, '>=', '3.1') %}
+        "min": 5001
+      {% else %}
         "max": 5000
+      {% endif %}
       }
 {% if supports_raise_anomaly %}
       , "raise_anomaly": true

@@ -1,0 +1,124 @@
+{% set query =
+    "match("
+    "node('system', name='system', system_id=not_none(), role='spine').out('hosted_interfaces')"
+    ".node('interface', name='intf', if_name=not_none()).out('link')"
+    ".node('link', role='spine_leaf', name='link').in_('link')"
+    ".node('interface').in_('hosted_interfaces')"
+    ".node('system', role='leaf', system_id=not_none()))"
+%}
+
+{% set supports_intuitive_thresholds = function.intuitive_thresholds(aos_version) %}
+
+{% if function.version_compare(aos_version, '<', '3.0') %}
+
+** ERROR: This probe is not supported on AOS versions less than 3.0 **
+
+{% else %}
+
+{
+  "label": "Spine fault tolerance",
+  "description": "Find out if failure of given number of spines in the fabric is going to be tolerated. Raise anomaly if total traffic on all spines is more than the available spine capacity, with the specified number of spine failures.",
+  "processors": [
+    {
+      "name": "Interface rx bps",
+      "type": "if_counter",
+      "properties": {
+        "graph_query": "{{query}}",
+        "system_id": "system.system_id",
+        "counter_type": "rx_bits",
+        "interface": "intf.if_name",
+        "description": "intf.description"
+      },
+      "outputs": {
+        "out": "Interface rx bps"
+      },
+      "stages": [
+        {
+          "name": "Interface rx bps",
+          "description": "spine interfaces facing leaf interfaces that are part of the fabric. Value is ingress bits per second",
+          "units": "bps"
+        }
+      ]
+    },
+    {
+      "name": "Average interface rx bps",
+      "type": "periodic_average",
+      "inputs": {
+        "in": "Interface rx bps"
+      },
+      "properties": {
+        "period": 60
+      },
+      "outputs": {
+        "out": "Average interface rx bps"
+      }
+    },
+    {
+      "name": "Total spine rx bps",
+      "type": "sum",
+      "inputs": {
+        "in": "Average interface rx bps"
+      },
+      "outputs": {
+        "out": "Total spine rx bps"
+      },
+      "properties": {
+        "group_by": []
+      }
+    },
+    {
+      "name": "History of Total spine rx bps",
+      "type": "accumulate",
+      "inputs": {
+        "in": "Total spine rx bps"
+      },
+      "properties": {
+        "max_samples": 1024
+      },
+      "outputs": {
+        "out": "History of Total spine rx bps"
+      }
+    },
+    {
+      "name": "Check fault tolerance threshold",
+      "type": "range_check",
+      "inputs": {
+        "in": "History of Total spine rx bps"
+      },
+      "properties": {
+        "property": "value",
+        "graph_query": [
+          "{{query}}"
+        ],
+        "range": {
+          "{{'min' if supports_intuitive_thresholds else 'max'}}": "(len({qr['system'].system_id for qr in query_result}) - {{number_of_faulty_spines_to_be_tolerated}}) * sum([functions.speed_to_bits(qr['link'].speed, default=0) for qr in query_result if qr['system'].system_id == query_result[0]['system'].system_id])"
+        },
+        "raise_anomaly": true
+      },
+      "outputs": {
+        "out": "Traffic exceeds fault tolerance threshold"
+      },
+      "stages": [
+        {
+            "name": "Traffic exceeds fault tolerance threshold",
+            "description": "Raises anomaly if total spine bandwidth exceeds available capacity, considering fault tolerance"
+        }
+      ]
+    },
+    {
+      "name": "History of traffic threshold anomaly",
+      "type": "accumulate",
+      "inputs": {
+        "in": "Traffic exceeds fault tolerance threshold"
+      },
+      "properties": {
+        "max_samples": 1024
+      },
+      "outputs": {
+        "out": "History of traffic threshold anomaly"
+      }
+    }
+  ]
+}
+
+{% endif %}

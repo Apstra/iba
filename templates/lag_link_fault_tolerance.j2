@@ -1,0 +1,206 @@
+{% set query =
+    "match("
+    "node('system', name='server', role='l2_server').out('hosted_interfaces')"
+    ".node('interface', name='server_bond', if_type='port_channel').out('composed_of')"
+    ".node('interface', name='server_intf').out('link')"
+    ".node('link', name='link').in_('link')"
+    ".node('interface', name='leaf_intf').in_('hosted_interfaces')"
+    ".node('system', name='leaf', role='leaf', deploy_mode='deploy'),"
+    "node(name='leaf').out('part_of_rack').node('rack', name='rack'))"
+%}
+
+{% set supports_intuitive_thresholds = function.intuitive_thresholds(aos_version) %}
+
+{% if function.version_compare(aos_version, '<', '3.0') %}
+
+** ERROR: This probe is not supported on AOS versions less than 3.0 **
+
+{% else %}
+
+{
+  "label": "Link fault tolerance in server LAGs",
+  "description": "Find out if failure of one link in a server LAG is going to be tolerated. Monitors total traffic in each LAG against total available capacity of the bond, with one link failure. Raise anomaly for racks with more than 50% of such overused bonds, sustained for certain duration",
+  "processors": [
+    {
+      "name": "Leaf interface rx",
+      "type": "if_counter",
+      "properties": {
+        "graph_query": "{{query}}",
+        "system_id": "leaf.system_id",
+        "counter_type": "rx_bits",
+        "interface": "leaf_intf.if_name",
+        "server": "server.hostname or server.label",
+        "rack": "rack.label",
+        "speed": "link.speed",
+        "server_bond": "server_bond.description",
+        "server_bond_id": "server_bond.id"
+      },
+      "outputs": {
+        "out": "Leaf interface rx"
+      },
+      "stages": [
+        {
+          "name": "Leaf interface rx",
+          "units": "bps",
+          "description": "Leaf interfaces facing server interfaces that are part of a bond. Value is ingress bits per second"
+        }
+      ]
+    },
+    {
+      "name": "Average leaf interface rx",
+      "type": "periodic_average",
+      "inputs": {
+        "in": "Leaf interface rx"
+      },
+      "properties": {
+        "period": 60
+      },
+      "outputs": {
+        "out": "Average leaf interface rx"
+      }
+    },
+    {
+      "name": "Total traffic per server bond",
+      "type": "sum",
+      "inputs": {
+        "in": "Average leaf interface rx"
+      },
+      "properties": {
+        "group_by": [
+          "server",
+          "server_bond",
+          "server_bond_id",
+          "speed",
+          "rack"
+        ]
+      },
+      "outputs": {
+        "out": "Total traffic per server bond"
+      }
+    },
+    {
+      "name": "History of total traffic per server bond",
+      "type": "accumulate",
+      "inputs": {
+        "in": "Total traffic per server bond"
+      },
+      "properties": {
+        "max_samples": 1024
+      },
+      "outputs": {
+        "out": "History of total traffic per server bond"
+      }
+    },
+    {
+      "name": "Check tolerance threshold",
+      "type": "range_check",
+      "inputs": {
+        "in": "History of total traffic per server bond"
+      },
+      "properties": {
+        "graph_query": ["{{query}}"],
+        "range": {
+          "{{'min' if supports_intuitive_thresholds else 'max'}}": "(len([qr for qr in query_result if qr['server_bond'].id == context.server_bond_id])-1) * functions.speed_to_bits(context.speed)"
+        }
+      },
+      "outputs": {
+        "out": "Server bonds exceeding tolerance"
+      },
+      "stages": [
+        {
+          "name": "Server bonds exceeding tolerance",
+          "description": "Server bonds with total bandwidth exceeding available capacity, in presence of one link failure"
+        }
+      ]
+    },
+    {
+      "name": "Percent of bonds per rack",
+      "type": "match_perc",
+      "inputs": {
+        "in": "Server bonds exceeding tolerance"
+      },
+      "properties": {
+        "group_by": ["rack"],
+        "reference_state": "true"
+      },
+      "outputs": {
+        "out": "Percent of bonds per rack"
+      },
+      "stages": [
+        {
+          "name": "Percent of bonds per rack",
+          "description": "Percentage of server bonds per rack, with total bandwidth exceeding available capacity, in presence of one link failure"
+        }
+      ]
+    },
+    {
+      "name": "History of percent of bonds per rack",
+      "type": "accumulate",
+      "inputs": {
+        "in": "Percent of bonds per rack"
+      },
+      "properties": {
+        "max_samples": 1024
+      },
+      "outputs": {
+        "out": "History of percent of bonds per rack"
+      },
+      "stages": [
+        {
+          "name": "History of percent of bonds per rack",
+          "description": "History of percentage of server bonds per rack, with total bandwidth exceeding available capacity, in presence of one link failure"
+        }
+      ]
+    },
+    {
+      "name": "Check per rack bond percent threshold",
+      "type": "range_check",
+      "inputs": {
+        "in": "History of percent of bonds per rack"
+      },
+      "properties": {
+        "range": {
+          "{{'min' if supports_intuitive_thresholds else 'max'}}": 50
+        }
+      },
+      "outputs": {
+        "out": "Racks with high percent of bonds"
+      },
+      "stages": [
+        {
+          "name": "Racks with high percent of bonds",
+          "description": "Racks with high percentage of server bonds, with total bandwidth exceeding available capacity, in presence of one link failure"
+        }
+      ]
+    },
+    {
+      "name": "Affected racks anomaly",
+      "type": "time_in_state_check",
+      "inputs": {
+        "in": "Racks with high percent of bonds"
+      },
+      "properties": {
+        "time_window": 600,
+        "state_range": {
+          "'true'": [
+            {
+              "{{'min' if supports_intuitive_thresholds else 'max'}}": 300
+            }
+          ]
+        },
+        "raise_anomaly": true
+      },
+      "outputs": {
+        "out": "Racks with persistent high percent of bonds"
+      },
+      "stages": [
+        {
+          "name": "Racks with persistent high percent of bonds",
+          "description": "Racks with persistently high percentage of server bonds, with total bandwidth exceeding available capacity, in presence of one link failure"
+        }
+      ]
+    }
+  ]
+}
+
+{% endif %}

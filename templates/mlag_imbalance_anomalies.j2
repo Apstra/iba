@@ -97,9 +97,17 @@
       "properties": {
         "range": {
 {% if bps_suffix %}
-          "max": {{((function.get_link_speed(link_speed)|int) * (percent_threshold|float)) / 100}}
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "min": {{ ((function.get_link_speed(link_speed) * (percent_threshold|float)) / 100)|int + 1 }}
+        {% else %}
+          "max": {{ ((function.get_link_speed(link_speed) * (percent_threshold|float)) / 100)|int }}
+        {% endif %}
 {% else %}
-          "max": {{ ((function.get_link_speed(link_speed)|int) * (percent_threshold|float)) / 8 / 100 }}
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "min": {{ ((function.get_link_speed(link_speed) * (percent_threshold|float)) / 8 / 100)|int + 1 }}
+        {% else %}
+          "max": {{ ((function.get_link_speed(link_speed) * (percent_threshold|float)) / 8 / 100)|int }}
+        {% endif %}
 {% endif %}
         }
 {% if supports_raise_anomaly and not sustained %}
@@ -122,7 +130,11 @@
         "state_range": {
           "{{ function.state_check_format_state('true', aos_version) }}": [
             {
+            {% if function.version_compare(aos_version, '>=', '3.1') %}
+              "min": 21
+            {% else %}
               "max": 20
+            {% endif %}
             }
           ]
         }

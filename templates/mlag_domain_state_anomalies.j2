@@ -30,31 +30,31 @@
         "range": {
           "max": 1,
           "min": 1
-        }
-{% if supports_raise_anomaly %}
-        , "raise_anomaly": true
-{% endif %}
+        },
+        {% if function.version_compare(aos_version, '>=', '3.1') %}
+          "raise_anomaly": false
+        {% else %}
+          "raise_anomaly": true
+        {% endif %}
       },
       "outputs": {
         "out": "mlag_domain_state_down"
       }
     }
-{% if not supports_raise_anomaly %}
+    {% if function.version_compare(aos_version, '>=', '3.1') %}
     ,
     {
-      "name": "MLAG domain down anomaly",
-      "type": "anomaly",
-      "inputs": {
-        "in": "mlag_domain_state_down"
-      },
+      "inputs": {"in": "mlag_domain_state_down"},
+      "type": "state_check",
+      "name": "Check inactive MLAG domains",
+      "outputs": {"out": "check_mlag_domain_state_down"},
       "properties": {
-        "enable_streaming": true
-      },
-      "outputs": {
-        "out": "mlag_domain_state_down_anomaly"
+        "enable_streaming": false,
+        "state": "'false'",
+        "raise_anomaly": true
       }
     }
-{% endif %}
+    {% endif %}
   ],
   "label": "MLAG domain state anomalies"
 }

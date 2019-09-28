@@ -97,11 +97,13 @@
         }
       ]
     },
+{{render_summarization(label, '%s_traffic' % label)}}
+    ,
     {
       "name": "Bucketed {{label}} traffic",
       "type": "sum",
       "inputs": {
-        "in": "{{label}}_traffic"
+        "in": "{{label}}_traffic_{{summary_specs[0][0]}}min_avg"
       },
       "properties": {
         "group_by": ["group"]
@@ -116,8 +118,6 @@
         }
       ]
     },
-{{render_summarization(label, '%s_traffic' % label)}}
-    ,
 {{render_summarization('Grouped %s' % label, '%s_traffic_by_group' % label)}}
 {% endmacro %}
 
