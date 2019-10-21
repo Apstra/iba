@@ -21,7 +21,7 @@ They also serve as examples to help build custom probes yourself.
 
 ## Layer1
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | fabric_interface_flapping | Detect interface that are flapping |
 | sfp | Detect high and/or low warning thresholds in SFP RX Power, TX Power, Temperature, Voltage, or Current |
@@ -29,7 +29,7 @@ They also serve as examples to help build custom probes yourself.
 
 ## Layer2
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | mlag_domain_config_sanity_anomalies | Detect MLAG (a.k.a MCLAG or VPC) domains with inconsistent configuration between member devices |
 | stp_state | Detect STP blocked interfaces in all VLANs |
@@ -39,7 +39,7 @@ They also serve as examples to help build custom probes yourself.
 
 ## Layer3
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | border_leaf_default_gateway_anomalies | Verify routing intent on border leafs by ensuring default gateway nexthop count is as expected in all VRFs|
 | non_border_leaf_default_gateway_anomalies | Verify routing intent on non-border leafs by ensuring default gateway nexthop count is as expected in all VRFs |
@@ -48,7 +48,7 @@ They also serve as examples to help build custom probes yourself.
 
 ## Data plane
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | fabric_ecmp_imbalance | Detect imbalance between interfaces within the Fabric |
 | ecmp_imbalance_external_interfaces | Detect imbalance between interfaces exiting the Fabric |
@@ -66,7 +66,7 @@ They also serve as examples to help build custom probes yourself.
 
 ## Traffic patterns
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | fabric_hotcold_ifcounter | Detect hot and cold interfaces in the Fabric and flag systems with excessive cold or hot interfaces |
 | eastwest_traffic | Show the distribution of north-south vs. east-west traffic in the Fabric |
@@ -75,14 +75,14 @@ They also serve as examples to help build custom probes yourself.
 
 ## Troubleshooting
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | Headroom | Calculate headroom between two servers along all available paths |
 
 
 ## Virtual Infrastructure
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | virtual_infra_vlan_match | Detect inconsistencies between physical underlay and virtual networking |
 | missing_vlan_vms | Detect Virtual Machines that have connectivity issues due to configuration inconsistencies between physical underlay and virtual networking |
@@ -94,7 +94,7 @@ They also serve as examples to help build custom probes yourself.
 
 ## Capacity Planning
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | arp_usage_anomalies | Detect devices with ARP table usage exceeding specified threshold |
 | unicast_route_usage_anomalies | Detect devices with Unicast route table usage exceeding specified threshold |
@@ -104,7 +104,7 @@ They also serve as examples to help build custom probes yourself.
 
 ## Multicast
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | anycast_rp_anomalies | Verify rendezvous point intent by ensuring all systems designated as rendezvous points have the expected peers present |
 | anycast_rp_peer_count_anomalies | Ensure high-availability of rendezvous points by ensuring all rendezvous points have min number of anycast peers configured |
@@ -116,7 +116,7 @@ They also serve as examples to help build custom probes yourself.
 
 ## Device health
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | memory_usage_threshold_anomalies | Detect memory leaks in specified process on all switches in the Fabric |
 | power_supply_anomalies | Detect faults in power supply status, power supply fan status and power supply temperature status |
@@ -125,7 +125,7 @@ They also serve as examples to help build custom probes yourself.
 
 ## Compliance
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | hostname_compliance | Ensures the FQDN of any system matches the user specified regex |
 | os_version_anomalies | Detect devices not running expected Operating System version |
@@ -133,7 +133,7 @@ They also serve as examples to help build custom probes yourself.
 
 ## Overlay
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | bum_to_total_traffic_anomalies | Detect % of BUM traffic to overall traffic exceeding specified threshold |
 | bum_traffic_on_unlearnt_vteps_anomaly | Detect when decap traffic is seen from an unlearnt remote VTEP |
@@ -144,13 +144,13 @@ They also serve as examples to help build custom probes yourself.
 
 ## Security
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | acl_stat_anomalies | Report on acl rule matches that exceed user defined thresholds |
 
 ## EVPN
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | evpn (VTEP floodlist) | Validate Type 3 routes for L2 VNIs|
 | evpn (VXLAN Routing) | Validate VXLAN subnet (type 5) presence in BGP RIB |
@@ -159,7 +159,7 @@ They also serve as examples to help build custom probes yourself.
 
 ## Fault Tolerance
 
-| Probe | Description
+| Validation | Description
 | ---------- | -----------
 | lag_link_fault_tolerance | Determines if a failure of one link in a server LAG can be tolerated based on the current traffic load |
 | spine_fault_tolerance | Determines if the failure of a user specified number of spines can be tolerated based on the current traffic load across all spines |
